@@ -116,11 +116,12 @@ export function meter(pct, tone, { value = null, stacked = false, footnote = nul
  * re-render that every keystroke triggers.
  */
 export function inputField(label, form, field, opts = {}) {
-  const { type = 'text', placeholder = '', mono = false, variant = null, onInput = null } = opts;
+  const { type = 'text', placeholder = '', mono = false, variant = null, onInput = null, disabled = false } = opts;
   const control = el('input', {
     type,
     value: store.state[form][field] ?? '',
     placeholder,
+    disabled,
     'data-bind': `${form}.${field}`,
     onInput: e => (onInput ? onInput(e.target.value) : store.setField(form, field, e.target.value))
   });
@@ -132,9 +133,10 @@ export function inputField(label, form, field, opts = {}) {
 
 /** A labelled select. `options` is `[{ value, label }]`. */
 export function selectField(label, form, field, options, opts = {}) {
-  const { placeholder = null, variant = null, onChange = null } = opts;
+  const { placeholder = null, variant = null, onChange = null, disabled = false } = opts;
   const value = store.state[form][field] ?? '';
   const control = el('select', {
+    disabled,
     'data-bind': `${form}.${field}`,
     onChange: e => (onChange ? onChange(e.target.value) : store.setField(form, field, e.target.value))
   },

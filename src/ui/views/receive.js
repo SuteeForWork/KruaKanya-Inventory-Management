@@ -12,7 +12,7 @@ import { expiryOf, scopedLots } from '../../core/inventory.js';
 const HEAD = [
   'ล็อต', 'วันที่-เวลารับเข้า', 'วัตถุดิบ', 'ซัพพลายเออร์', 'ผู้จัดซื้อ', 'วันที่ผลิต',
   'อายุ (วัน)|R', 'วันหมดอายุ', 'จำนวนรับเข้า|R', 'น้ำหนักรับเข้า|R',
-  'น้ำหนัก/หน่วย|R', 'ราคา/หน่วย|R', 'มูลค่ารวม|R'
+  'น้ำหนัก/หน่วย|R', 'ราคา/หน่วย|R', 'มูลค่ารวม|R', ''
 ];
 
 /** Live totals so the user sees the lot's weight, value and expiry before saving. */
@@ -36,18 +36,23 @@ function preview(state) {
 }
 
 function form(state) {
+  const editing = state.editingLot;
   const itemOptions = state.items.map(i => ({ value: i.code, label: `${i.code} · ${i.name}` }));
   const supplierOptions = state.suppliers.map(s => ({ value: s.name, label: s.name }));
 
-  return formCard({ title: 'บันทึกรับวัตถุดิบเข้า', note: `ล็อตถัดไป · ${store.nextLotId()}` },
+  return formCard({
+    title: editing ? `แก้ไขรายการรับเข้า · ${editing}` : 'บันทึกรับวัตถุดิบเข้า',
+    note: editing ? 'แก้ไขได้ทุกช่องยกเว้นรหัสวัตถุดิบ' : `ล็อตถัดไป · ${store.nextLotId()}`
+  },
     fieldGrid(null,
       inputField('วันที่รับเข้า', 'receiveForm', 'recvDate', { type: 'date' }),
       inputField('เวลาที่รับเข้า', 'receiveForm', 'recvTime', { type: 'time' }),
       selectField('รหัสวัตถุดิบ', 'receiveForm', 'code', itemOptions, {
         placeholder: '— เลือกรหัส —',
-        onChange: code => store.pickReceiveItem(code)
+        onChange: code => store.pickReceiveItem(code),
+        disabled: Boolean(editing)
       }),
-      inputField('ชื่อวัตถุดิบ', 'receiveForm', 'name', { placeholder: 'เช่น อกไก่สด' }),
+      inputField('ชื่อวัตถุดิบ', 'receiveForm', 'name', { placeholder: 'เช่น อกไก่สด', disabled: Boolean(editing) }),
       selectField('ชื่อซัพพลายเออร์', 'receiveForm', 'supplier', supplierOptions, { placeholder: '— เลือกซัพพลายเออร์ —' }),
       inputField('ชื่อผู้จัดซื้อ', 'receiveForm', 'buyer', { placeholder: 'ชื่อผู้ทำ PO' }),
       inputField('วันที่ผลิต', 'receiveForm', 'mfgDate', { type: 'date' }),
@@ -62,10 +67,13 @@ function form(state) {
         el('div', { class: 'summary__label', text: e.label }),
         el('div', { class: ['summary__value', e.variant && 'summary__value--' + e.variant], text: e.value })
       ))),
-      el('button', {
-        class: 'btn btn--primary btn--submit', text: 'บันทึกรับเข้า',
-        onClick: () => store.submitReceive()
-      })
+      el('div', { class: 'row', style: { gap: '8px' } },
+        el('button', {
+          class: 'btn btn--primary btn--submit', text: editing ? 'บันทึกการแก้ไข' : 'บันทึกรับเข้า',
+          onClick: () => (editing ? store.saveLotEdit() : store.submitReceive())
+        }),
+        when(editing, () => el('button', { class: 'btn', text: 'ยกเลิก', onClick: () => store.cancelEditLot() }))
+      )
     )
   );
 }
@@ -88,7 +96,9 @@ function historyRows(state) {
       tdNum(n(l.qtyIn * l.weightPerUnit, 1)),
       tdNum(n(l.weightPerUnit, 1)),
       tdNum(baht(l.pricePerUnit)),
-      tdNum(baht(l.qtyIn * l.pricePerUnit))
+      tdNum(baht(l.qtyIn * l.pricePerUnit)),
+      td(when(store.canEdit('receive'), () =>
+        el('button', { class: 'btn btn--small', text: 'แก้ไข', onClick: () => store.startEditLot(l.id) })))
     ));
 }
 

@@ -88,7 +88,6 @@ class Store {
       search: '',
       moveFilter: MOVE_FILTERS[0],
       toast: null,
-      seq: 40,
       // While `persisted`, init() replaces the seed above before first paint —
       // `booting` gates the UI so the login screen never flashes seed data.
       booting: this.persisted,
@@ -100,7 +99,12 @@ class Store {
       recipeForm: blankRecipe(),
       supplierForm: blankSupplier(),
       branchForm: blankBranch(),
-      itemForm: blankItem()
+      itemForm: blankItem(),
+      // Which row each "add" form is currently editing — null means "adding new".
+      editingLot: null,
+      editingSupplier: null,
+      editingBranch: null,
+      editingItem: null
     };
   }
 
@@ -114,7 +118,6 @@ class Store {
         items: data.items, suppliers: data.suppliers, branches: data.branches,
         recipes: data.recipes, lots: data.lots, moves: data.moves, outputs: data.outputs,
         perms,
-        seq: Math.max(40, data.lots.length, data.moves.length),
         booting: false
       });
     } catch (e) {
@@ -262,18 +265,46 @@ class Store {
     this.say(`เปลี่ยนมุมมองเป็น ${this.branchLabel(id)} — ข้อมูลสต๊อก ต้นทุน และรายงานถูกกรองตามสาขานี้`);
   }
 
+  startEditBranch(id) {
+    if (!this.isAdmin()) { this.say('เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขสาขาได้', true); return; }
+    const b = this.state.branches.find(x => x.id === id);
+    if (!b) return;
+    this.set({
+      editingBranch: id,
+      branchForm: { name: b.name, type: b.type, manager: b.manager === '-' ? '' : b.manager, phone: b.phone === '-' ? '' : b.phone }
+    });
+  }
+
+  cancelEditBranch() {
+    this.set({ editingBranch: null, branchForm: blankBranch() });
+  }
+
   async addBranch() {
     if (!this.isAdmin()) { this.say('เฉพาะผู้ดูแลระบบเท่านั้นที่เพิ่มสาขาได้', true); return; }
     const form = this.state.branchForm;
     if (!form.name) { this.say('ระบุชื่อสาขาก่อนบันทึก', true); return; }
 
-    const id = 'BR-' + String(this.state.branches.length + 1).padStart(2, '0');
-    const branch = {
-      id, name: form.name,
+    const patch = {
+      name: form.name,
       type: form.type || 'สาขาหน้าร้าน',
       manager: form.manager || '-',
       phone: form.phone || '-'
     };
+
+    if (this.state.editingBranch) {
+      const id = this.state.editingBranch;
+      const ok = await this.persist('แก้ไขสาขา', () => db.updateBranch(id, patch));
+      if (!ok) return;
+      this.set(s => ({
+        branches: s.branches.map(b => (b.id === id ? { ...b, ...patch } : b)),
+        editingBranch: null, branchForm: blankBranch()
+      }));
+      this.say(`แก้ไข ${id} · ${form.name} เรียบร้อย`);
+      return;
+    }
+
+    const id = 'BR-' + String(this.state.branches.length + 1).padStart(2, '0');
+    const branch = { id, ...patch };
     const ok = await this.persist('เพิ่มสาขา', () => db.insertBranch(branch));
     if (!ok) return;
     this.set(s => ({ branches: s.branches.concat([branch]), branchForm: blankBranch() }));
@@ -281,6 +312,25 @@ class Store {
   }
 
   /* ---- item master -------------------------------------------------------- */
+
+  startEditItem(code) {
+    if (!this.guard('master')) return;
+    const it = this.state.items.find(i => i.code === code);
+    if (!it) return;
+    this.set({
+      editingItem: code,
+      itemForm: {
+        code: it.code, name: it.name, category: it.category === '-' ? '' : it.category, unit: it.unit,
+        weightPerUnit: String(it.weightPerUnit), shelfLife: String(it.shelfLife),
+        minStock: String(it.minStock), storage: it.storage === '-' ? '' : it.storage,
+        mainSupplier: it.mainSupplier || ''
+      }
+    });
+  }
+
+  cancelEditItem() {
+    this.set({ editingItem: null, itemForm: blankItem() });
+  }
 
   async addItem() {
     if (!this.guard('master')) return;
@@ -293,16 +343,31 @@ class Store {
       this.say('กรอกไม่ครบ — ต้องมีรหัส ชื่อ หน่วยนับ น้ำหนัก/หน่วย และอายุวัตถุดิบ', true);
       return;
     }
+
+    const patch = {
+      name: f.name, category: f.category || '-', unit: f.unit,
+      weightPerUnit, shelfLife, minStock, storage: f.storage || '-',
+      mainSupplier: f.mainSupplier || null
+    };
+
+    if (this.state.editingItem) {
+      const code = this.state.editingItem;
+      const ok = await this.persist('แก้ไขวัตถุดิบ', () => db.updateItem(code, patch, this.supplierIdByName(f.mainSupplier)));
+      if (!ok) return;
+      this.set(s => ({
+        items: s.items.map(i => (i.code === code ? { ...i, ...patch } : i)),
+        editingItem: null, itemForm: blankItem()
+      }));
+      this.say(`แก้ไขวัตถุดิบ ${code} เรียบร้อย`);
+      return;
+    }
+
     if (this.state.items.some(i => i.code === f.code)) {
       this.say(`รหัส ${f.code} มีอยู่แล้วในระบบ`, true);
       return;
     }
 
-    const item = {
-      code: f.code, name: f.name, category: f.category || '-', unit: f.unit,
-      weightPerUnit, shelfLife, minStock, storage: f.storage || '-',
-      mainSupplier: f.mainSupplier || null
-    };
+    const item = { code: f.code, ...patch };
     const ok = await this.persist('เพิ่มวัตถุดิบ', () => db.insertItem(item, this.supplierIdByName(f.mainSupplier)));
     if (!ok) return;
     this.set(s => ({ items: s.items.concat([item]), itemForm: blankItem() }));
@@ -326,9 +391,103 @@ class Store {
     }));
   }
 
+  /**
+   * Smallest number not already used as the "-NN" suffix of a lot id on this
+   * date prefix. Derived fresh from loaded data every time — not a counter
+   * kept in memory — so a page reload never reissues an id that's already on
+   * the books. (A session-local counter did exactly that: it always restarted
+   * from the same value for a given business date, so the very next receipt
+   * after any reload collided with the last one. No `.slice(-2)` truncation
+   * either — that wrapped back to reused numbers once the count passed 99.)
+   */
+  nextLotSeq(datePrefix) {
+    const used = this.state.lots
+      .map(l => Number(l.id.slice(`LOT-${datePrefix}-`.length)))
+      .filter(Number.isInteger);
+    return (used.length ? Math.max(...used) : 0) + 1;
+  }
+
   nextLotId() {
     const date = this.state.receiveForm.recvDate || today();
-    return 'LOT-' + date.slice(2).replace(/-/g, '') + '-' + String(this.state.seq + 1).slice(-2);
+    const prefix = date.slice(2).replace(/-/g, '');
+    return `LOT-${prefix}-` + String(this.nextLotSeq(prefix)).padStart(2, '0');
+  }
+
+  /** Same idea as nextLotSeq, for issue/waste document numbers. */
+  nextIssueSeq(datePrefix) {
+    const used = this.state.moves
+      .filter(m => m.id.startsWith(`IS-${datePrefix}-`))
+      .map(m => Number(m.id.split('-')[2]))
+      .filter(Number.isInteger);
+    return (used.length ? Math.max(...used) : 0) + 1;
+  }
+
+  startEditLot(id) {
+    if (!this.guard('receive')) return;
+    const lot = this.state.lots.find(l => l.id === id);
+    if (!lot) return;
+    this.set({
+      editingLot: id,
+      receiveForm: {
+        recvDate: lot.recvDate, recvTime: lot.recvTime, code: lot.code, name: lot.name,
+        supplier: lot.supplier === '-' ? '' : lot.supplier, buyer: lot.buyer === '-' ? '' : lot.buyer,
+        mfgDate: lot.mfgDate, shelfLife: String(lot.shelfLife),
+        qtyIn: String(lot.qtyIn), weightPerUnit: String(lot.weightPerUnit),
+        pricePerUnit: String(lot.pricePerUnit), ref: lot.ref === '-' ? '' : lot.ref
+      }
+    });
+  }
+
+  cancelEditLot() {
+    this.set({ editingLot: null, receiveForm: blankReceive() });
+  }
+
+  /**
+   * Corrects a receipt already on the books. The item code and branch are
+   * fixed — those identify which lot this is, not something to "fix". If
+   * qtyIn changes, qtyLeft shifts by the same amount so whatever has already
+   * been issued or transferred out of this lot stays untouched; qtyLeft is
+   * never allowed to go negative, i.e. you can't shrink a lot below what's
+   * already been drawn from it.
+   */
+  async saveLotEdit() {
+    if (!this.guard('receive')) return;
+    const id = this.state.editingLot;
+    const original = this.state.lots.find(l => l.id === id);
+    if (!original) { this.cancelEditLot(); return; }
+
+    const f = this.state.receiveForm;
+    const qtyIn = Number(f.qtyIn) || 0;
+    const weightPerUnit = Number(f.weightPerUnit) || 0;
+    const pricePerUnit = Number(f.pricePerUnit) || 0;
+    const shelfLife = Number(f.shelfLife) || 0;
+
+    if (!qtyIn || !pricePerUnit || !weightPerUnit || !shelfLife) {
+      this.say('กรอกไม่ครบ — ต้องมีจำนวน น้ำหนัก/หน่วย ราคา และอายุวัตถุดิบ', true);
+      return;
+    }
+
+    const alreadyOut = original.qtyIn - original.qtyLeft;
+    const qtyLeft = qtyIn - alreadyOut;
+    if (qtyLeft < 0) {
+      this.say(`ลดจำนวนต่ำกว่า ${n(alreadyOut)} หน่วยไม่ได้ — ถูกเบิก/โอนออกไปแล้วเท่านั้น`, true);
+      return;
+    }
+
+    const patch = {
+      supplier: f.supplier || '-', buyer: f.buyer || '-',
+      recvDate: f.recvDate, recvTime: f.recvTime, mfgDate: f.mfgDate,
+      shelfLife, weightPerUnit, qtyIn, qtyLeft, pricePerUnit, ref: f.ref || '-'
+    };
+
+    const ok = await this.persist('แก้ไขรายการรับเข้า', () => db.updateLot(id, patch, this.supplierIdByName(f.supplier)));
+    if (!ok) return;
+
+    this.set(s => ({
+      lots: s.lots.map(l => (l.id === id ? { ...l, ...patch } : l)),
+      editingLot: null, receiveForm: blankReceive()
+    }));
+    this.say(`แก้ไข ${id} เรียบร้อย`);
   }
 
   async submitReceive() {
@@ -347,8 +506,7 @@ class Store {
       return;
     }
 
-    const seq = this.state.seq + 1;
-    const lotId = 'LOT-' + f.recvDate.slice(2).replace(/-/g, '') + '-' + String(seq).slice(-2);
+    const lotId = this.nextLotId();
     const lot = {
       id: lotId, branch: this.state.branch, code: f.code, name,
       unit: item ? item.unit : 'หน่วย',
@@ -371,7 +529,6 @@ class Store {
     this.set(s => ({
       lots: s.lots.concat([lot]),
       moves: s.moves.concat([move]),
-      seq,
       // Keep supplier and buyer — receiving usually comes in runs from one PO.
       receiveForm: { ...blankReceive(), supplier: f.supplier, buyer: f.buyer }
     }));
@@ -396,8 +553,8 @@ class Store {
       return;
     }
 
-    const seq = this.state.seq + 1;
-    const doc = 'IS-2608-' + (100 + seq);
+    const datePrefix = today().slice(2).replace(/-/g, '');
+    const doc = `IS-${datePrefix}-` + this.nextIssueSeq(datePrefix);
     const time = clockTime();
     const isWaste = f.purpose === WASTE_PURPOSE;
     const from = this.state.branch;
@@ -461,7 +618,6 @@ class Store {
     this.set(s => ({
       lots: lots.concat(transferLots),
       moves: s.moves.concat(issueMoves, transferMoves),
-      seq,
       issueForm: { ...f, qty: '', note: '' }
     }));
 
@@ -556,19 +712,50 @@ class Store {
 
   /* ---- suppliers -------------------------------------------------------- */
 
+  startEditSupplier(id) {
+    if (!this.guard('master')) return;
+    const s = this.state.suppliers.find(x => x.id === id);
+    if (!s) return;
+    this.set({
+      editingSupplier: id,
+      supplierForm: {
+        name: s.name, category: s.category === '-' ? '' : s.category,
+        contact: s.contact === '-' ? '' : s.contact, phone: s.phone === '-' ? '' : s.phone,
+        terms: s.terms === '-' ? '' : s.terms, cert: s.cert === '-' ? '' : s.cert
+      }
+    });
+  }
+
+  cancelEditSupplier() {
+    this.set({ editingSupplier: null, supplierForm: blankSupplier() });
+  }
+
   async addSupplier() {
     if (!this.guard('master')) return;
 
     const f = this.state.supplierForm;
     if (!f.name) { this.say('ระบุชื่อซัพพลายเออร์ก่อนบันทึก', true); return; }
 
-    const id = 'SUP-' + String(this.state.suppliers.length + 1).padStart(3, '0');
-    const supplier = {
-      id, name: f.name,
+    const patch = {
+      name: f.name,
       category: f.category || '-', contact: f.contact || '-',
-      phone: f.phone || '-', terms: f.terms || '-', cert: f.cert || '-',
-      score: 80
+      phone: f.phone || '-', terms: f.terms || '-', cert: f.cert || '-'
     };
+
+    if (this.state.editingSupplier) {
+      const id = this.state.editingSupplier;
+      const ok = await this.persist('แก้ไขซัพพลายเออร์', () => db.updateSupplier(id, patch));
+      if (!ok) return;
+      this.set(s => ({
+        suppliers: s.suppliers.map(x => (x.id === id ? { ...x, ...patch } : x)),
+        editingSupplier: null, supplierForm: blankSupplier()
+      }));
+      this.say(`แก้ไข ${id} · ${f.name} เรียบร้อย`);
+      return;
+    }
+
+    const id = 'SUP-' + String(this.state.suppliers.length + 1).padStart(3, '0');
+    const supplier = { id, ...patch, score: 80 };
     const ok = await this.persist('เพิ่มซัพพลายเออร์', () => db.insertSupplier(supplier));
     if (!ok) return;
     this.set(s => ({ suppliers: s.suppliers.concat([supplier]), supplierForm: blankSupplier() }));

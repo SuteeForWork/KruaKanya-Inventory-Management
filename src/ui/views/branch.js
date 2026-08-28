@@ -12,7 +12,7 @@ import { yieldStatus } from '../../core/production.js';
 
 const HEAD = [
   'รหัส', 'สาขา', 'ผู้จัดการ', 'เบอร์โทร', 'ล็อตคงเหลือ|R', 'น้ำหนักคงเหลือ (กก.)|R',
-  'ต้นทุนคงคลัง|R', 'ใกล้หมดอายุ|R', 'มูลค่าของเสีย|R', 'Yield|R', ''
+  'ต้นทุนคงคลัง|R', 'ใกล้หมดอายุ|R', 'มูลค่าของเสีย|R', 'Yield|R', '', ''
 ];
 
 function rows(state) {
@@ -34,20 +34,28 @@ function rows(state) {
       td(el('button', {
         class: 'btn btn--small', text: 'เข้าดู',
         onClick: () => store.setBranch(r.branch.id)
-      }))
+      })),
+      td(when(store.canEdit('branch'), () =>
+        el('button', { class: 'btn btn--small', text: 'แก้ไข', onClick: () => store.startEditBranch(r.branch.id) })))
     );
   });
 }
 
-function form() {
-  return formCard({ title: 'เพิ่มสาขาใหม่' },
+function form(state) {
+  const editing = state.editingBranch;
+  return formCard({ title: editing ? `แก้ไขสาขา · ${editing}` : 'เพิ่มสาขาใหม่' },
     fieldGrid('xs',
       inputField('ชื่อสาขา', 'branchForm', 'name', { placeholder: 'เช่น สาขาพระราม 9' }),
       selectField('ประเภท', 'branchForm', 'type', BRANCH_TYPES.map(v => ({ value: v, label: v }))),
       inputField('ผู้จัดการสาขา', 'branchForm', 'manager', { placeholder: 'ชื่อ-นามสกุล' }),
       inputField('เบอร์โทร', 'branchForm', 'phone', { placeholder: '0x-xxx-xxxx', mono: true }),
-      el('div', { class: 'field field--action' },
-        el('button', { class: 'btn btn--primary btn--block', text: 'เพิ่มสาขา', onClick: () => store.addBranch() }))
+      el('div', { class: 'field field--action', style: { flexDirection: 'row', gap: '8px' } },
+        el('button', {
+          class: 'btn btn--primary btn--block', text: editing ? 'บันทึกการแก้ไข' : 'เพิ่มสาขา',
+          onClick: () => store.addBranch()
+        }),
+        when(editing, () => el('button', { class: 'btn', text: 'ยกเลิก', onClick: () => store.cancelEditBranch() }))
+      )
     )
   );
 }
@@ -59,6 +67,6 @@ export function branchView() {
       title: `เทียบผลการดำเนินงานทุกสาขา (${state.branches.length} สาขา)`,
       note: 'คลิก "เข้าดู" เพื่อสลับมุมมองไปที่สาขานั้น'
     }, table(HEAD, rows(state))),
-    when(store.canEdit('branch'), form)
+    when(store.canEdit('branch'), () => form(state))
   );
 }

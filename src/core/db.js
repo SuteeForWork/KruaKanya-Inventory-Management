@@ -163,12 +163,25 @@ export async function insertBranch(branch) {
   }), 'เพิ่มสาขา');
 }
 
+export async function updateBranch(id, branch) {
+  must(await supabase.from('branches').update({
+    name: branch.name, type: branch.type, manager: branch.manager, phone: branch.phone
+  }).eq('id', id), 'แก้ไขสาขา');
+}
+
 export async function insertSupplier(supplier) {
   must(await supabase.from('suppliers').insert({
     id: supplier.id, name: supplier.name, category: supplier.category,
     contact: supplier.contact, phone: supplier.phone,
     terms: supplier.terms, cert: supplier.cert, score: supplier.score
   }), 'เพิ่มซัพพลายเออร์');
+}
+
+export async function updateSupplier(id, supplier) {
+  must(await supabase.from('suppliers').update({
+    name: supplier.name, category: supplier.category, contact: supplier.contact,
+    phone: supplier.phone, terms: supplier.terms, cert: supplier.cert
+  }).eq('id', id), 'แก้ไขซัพพลายเออร์');
 }
 
 export async function insertItem(item, mainSupplierId) {
@@ -178,6 +191,15 @@ export async function insertItem(item, mainSupplierId) {
     min_stock: item.minStock, storage: item.storage,
     main_supplier_id: mainSupplierId || null
   }), 'เพิ่มวัตถุดิบ');
+}
+
+export async function updateItem(code, item, mainSupplierId) {
+  must(await supabase.from('items').update({
+    name: item.name, category: item.category, unit: item.unit,
+    weight_per_unit: item.weightPerUnit, shelf_life: item.shelfLife,
+    min_stock: item.minStock, storage: item.storage,
+    main_supplier_id: mainSupplierId || null
+  }).eq('code', code), 'แก้ไขวัตถุดิบ');
 }
 
 export async function insertRecipe(recipe) {
@@ -217,6 +239,17 @@ export async function insertMoves(moves) {
 
 export async function updateLotQtyLeft(lotId, qtyLeft) {
   must(await supabase.from('lots').update({ qty_left: qtyLeft }).eq('id', lotId), 'ปรับยอดคงเหลือของล็อต');
+}
+
+/** Corrects a receiving record — the item code and branch are not editable. */
+export async function updateLot(lotId, patch, supplierId) {
+  must(await supabase.from('lots').update({
+    supplier_id: supplierId || null, buyer: patch.buyer,
+    recv_date: patch.recvDate, recv_time: patch.recvTime, mfg_date: patch.mfgDate,
+    shelf_life: patch.shelfLife, weight_per_unit: patch.weightPerUnit,
+    qty_in: patch.qtyIn, qty_left: patch.qtyLeft, price_per_unit: patch.pricePerUnit,
+    ref: patch.ref
+  }).eq('id', lotId), 'แก้ไขรายการรับเข้า');
 }
 
 /** A branch transfer also lands as a brand-new lot at the destination. */
