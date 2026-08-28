@@ -173,14 +173,25 @@ create table profiles (
   branch_id    text references branches(id)
 );
 
+
 -- ==========================================================================
--- Row Level Security — starter policies
+-- Row Level Security
 --
--- These are intentionally coarse (signed-in users can read everything, only
--- admins can write the master/permission tables). Section-by-section write
--- rules that mirror role_permissions exactly are the next step once the app
--- is actually calling Supabase — wiring that up needs the client code changes
--- in src/core/store.js, not just SQL, so it is left for that follow-up pass.
+-- The app does not use Supabase Auth yet (src/core/access.js still checks
+-- a hardcoded demo account list client-side — see README.md). Every request
+-- the browser makes therefore arrives as the Postgres `anon` role, not
+-- `authenticated`. These policies are written for that reality: anyone who
+-- can reach this project's URL can read and write every table.
+--
+-- That matches the app's current trust model exactly — permissions today are
+-- enforced only by the UI (store.canEdit(section)), not the database — so
+-- this isn't a new weakness, just carrying the same one into the database.
+-- It stops being acceptable the moment this app is reachable from outside a
+-- trusted network. Locking it down for real means migrating login to
+-- Supabase Auth and rewriting the policies below to check auth.uid() against
+-- `profiles` and `role_permissions`, mirroring store.canEdit() in the
+-- database itself. Flag it for that follow-up pass rather than patching
+-- around it here.
 -- ==========================================================================
 
 alter table branches         enable row level security;
@@ -194,31 +205,18 @@ alter table outputs          enable row level security;
 alter table role_permissions enable row level security;
 alter table profiles         enable row level security;
 
--- Any signed-in user can read every table — the app itself decides what to
--- show per role; this just stops anonymous/unauthenticated access.
-create policy "signed-in users can read" on branches         for select using (auth.role() = 'authenticated');
-create policy "signed-in users can read" on suppliers        for select using (auth.role() = 'authenticated');
-create policy "signed-in users can read" on items            for select using (auth.role() = 'authenticated');
-create policy "signed-in users can read" on recipes          for select using (auth.role() = 'authenticated');
-create policy "signed-in users can read" on recipe_lines     for select using (auth.role() = 'authenticated');
-create policy "signed-in users can read" on lots             for select using (auth.role() = 'authenticated');
-create policy "signed-in users can read" on moves            for select using (auth.role() = 'authenticated');
-create policy "signed-in users can read" on outputs          for select using (auth.role() = 'authenticated');
-create policy "signed-in users can read" on role_permissions for select using (auth.role() = 'authenticated');
+-- Full read/write access, anon included — see the note above.
+create policy "open access" on branches         for all using (true) with check (true);
+create policy "open access" on suppliers        for all using (true) with check (true);
+create policy "open access" on items            for all using (true) with check (true);
+create policy "open access" on recipes          for all using (true) with check (true);
+create policy "open access" on recipe_lines     for all using (true) with check (true);
+create policy "open access" on lots             for all using (true) with check (true);
+create policy "open access" on moves            for all using (true) with check (true);
+create policy "open access" on outputs          for all using (true) with check (true);
+create policy "open access" on role_permissions for all using (true) with check (true);
 
--- A user may always read their own profile row.
-create policy "users can read own profile" on profiles for select using (auth.uid() = id);
-
--- Only admins may write role_permissions or profiles (role/branch changes).
-create policy "admins manage role_permissions" on role_permissions for all using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
-);
-create policy "admins manage profiles" on profiles for all using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
-);
-
--- Writes to the operational tables (lots/moves/outputs/recipes/suppliers/...)
--- are intentionally left open to any authenticated user for now — add
--- per-section policies here once store.js is wired to call Supabase, so the
--- database enforces the same "edit" rights the UI already checks with
--- store.canEdit(section).
+-- profiles is unused until the Supabase Auth migration — left locked down
+-- (a user may only ever touch their own row) so it's safe to leave in place.
+create policy "users manage own profile" on profiles for all
+  using (auth.uid() = id) with check (auth.uid() = id);

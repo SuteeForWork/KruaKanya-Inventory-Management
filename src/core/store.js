@@ -4,6 +4,11 @@
  * Views read `store.state`, call actions, and re-render on `subscribe`.
  * All business rules that change data live here; everything in `src/ui` is
  * presentation only.
+ *
+ * Persistence: if `config.supabaseUrl` is set, `init()` loads real data from
+ * Supabase and every mutating action writes through to it before updating
+ * local state (see `src/core/db.js`). With no Supabase configured, the store
+ * falls back to the in-memory seed exactly as before — nothing else changes.
  */
 
 import { seed } from '../data/seed.js';
@@ -17,6 +22,7 @@ import {
   PERM_ORDER, SECTIONS,
   authenticate, defaultPerms, firstViewFor, roleByKey
 } from './access.js';
+import * as db from './db.js';
 
 const TOAST_MS = 4200;
 
@@ -56,6 +62,11 @@ const blankSupplier = () => ({ name: '', category: '', contact: '', phone: '', t
 
 const blankBranch = () => ({ name: '', type: 'สาขาหน้าร้าน', manager: '', phone: '' });
 
+const blankItem = () => ({
+  code: '', name: '', category: '', unit: '', weightPerUnit: '',
+  shelfLife: '', minStock: '', storage: '', mainSupplier: ''
+});
+
 /* -------------------------------------------------------------------------- */
 /* Store                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -65,6 +76,7 @@ class Store {
     const data = seed();
     this.listeners = new Set();
     this.toastTimer = null;
+    this.persisted = db.isConfigured;
 
     this.state = {
       ...data,
@@ -77,14 +89,37 @@ class Store {
       moveFilter: MOVE_FILTERS[0],
       toast: null,
       seq: 40,
+      // While `persisted`, init() replaces the seed above before first paint —
+      // `booting` gates the UI so the login screen never flashes seed data.
+      booting: this.persisted,
+      bootError: null,
       loginForm: { user: '', pass: '', error: '' },
       receiveForm: blankReceive(),
       issueForm: blankIssue(),
       outputForm: blankOutput(),
       recipeForm: blankRecipe(),
       supplierForm: blankSupplier(),
-      branchForm: blankBranch()
+      branchForm: blankBranch(),
+      itemForm: blankItem()
     };
+  }
+
+  /** Load real data from Supabase. No-op if Supabase isn't configured. */
+  async init() {
+    if (!this.persisted) return;
+    try {
+      const data = await db.loadAll();
+      const perms = data.perms || await db.seedPermissions(defaultPerms());
+      this.set({
+        items: data.items, suppliers: data.suppliers, branches: data.branches,
+        recipes: data.recipes, lots: data.lots, moves: data.moves, outputs: data.outputs,
+        perms,
+        seq: Math.max(40, data.lots.length, data.moves.length),
+        booting: false
+      });
+    } catch (e) {
+      this.set({ booting: false, bootError: e.message });
+    }
   }
 
   /* ---- plumbing --------------------------------------------------------- */
@@ -111,6 +146,23 @@ class Store {
     this.toastTimer = setTimeout(() => this.set({ toast: null }), TOAST_MS);
   }
 
+  /** Run a write through Supabase (when configured) and report failures as a toast. */
+  async persist(action, fn) {
+    if (!this.persisted) return true;
+    try {
+      await fn();
+      return true;
+    } catch (e) {
+      this.say(`${action}ไม่สำเร็จ — ${e.message}`, true);
+      return false;
+    }
+  }
+
+  supplierIdByName(name) {
+    const s = this.state.suppliers.find(x => x.name === name);
+    return s ? s.id : null;
+  }
+
   /* ---- permissions ------------------------------------------------------ */
 
   perm(section, role = this.state.role) {
@@ -135,14 +187,19 @@ class Store {
     return false;
   }
 
-  cyclePerm(role, section) {
+  async cyclePerm(role, section) {
     if (!this.isAdmin()) { this.say('เฉพาะผู้ดูแลระบบเท่านั้นที่แก้สิทธิ์ได้', true); return; }
     const next = PERM_ORDER[(PERM_ORDER.indexOf(this.perm(section, role)) + 1) % PERM_ORDER.length];
+    const ok = await this.persist('บันทึกสิทธิ์', () => db.upsertPermission(role, section, next));
+    if (!ok) return;
     this.set(s => ({ perms: { ...s.perms, [role]: { ...s.perms[role], [section]: next } } }));
   }
 
-  resetPerms() {
-    this.set({ perms: defaultPerms() });
+  async resetPerms() {
+    const defaults = defaultPerms();
+    const ok = await this.persist('คืนค่าสิทธิ์', () => db.replacePermissions(defaults));
+    if (!ok) return;
+    this.set({ perms: defaults });
     this.say('คืนค่าสิทธิ์เริ่มต้นของทุกบทบาทแล้ว');
   }
 
@@ -205,7 +262,7 @@ class Store {
     this.say(`เปลี่ยนมุมมองเป็น ${this.branchLabel(id)} — ข้อมูลสต๊อก ต้นทุน และรายงานถูกกรองตามสาขานี้`);
   }
 
-  addBranch() {
+  async addBranch() {
     if (!this.isAdmin()) { this.say('เฉพาะผู้ดูแลระบบเท่านั้นที่เพิ่มสาขาได้', true); return; }
     const form = this.state.branchForm;
     if (!form.name) { this.say('ระบุชื่อสาขาก่อนบันทึก', true); return; }
@@ -217,8 +274,39 @@ class Store {
       manager: form.manager || '-',
       phone: form.phone || '-'
     };
+    const ok = await this.persist('เพิ่มสาขา', () => db.insertBranch(branch));
+    if (!ok) return;
     this.set(s => ({ branches: s.branches.concat([branch]), branchForm: blankBranch() }));
     this.say(`เพิ่ม ${id} · ${form.name} เรียบร้อย — พร้อมรับวัตถุดิบเข้าสาขานี้`);
+  }
+
+  /* ---- item master -------------------------------------------------------- */
+
+  async addItem() {
+    if (!this.guard('master')) return;
+    const f = this.state.itemForm;
+    const weightPerUnit = Number(f.weightPerUnit) || 0;
+    const shelfLife = Number(f.shelfLife) || 0;
+    const minStock = Number(f.minStock) || 0;
+
+    if (!f.code || !f.name || !f.unit || !weightPerUnit || !shelfLife) {
+      this.say('กรอกไม่ครบ — ต้องมีรหัส ชื่อ หน่วยนับ น้ำหนัก/หน่วย และอายุวัตถุดิบ', true);
+      return;
+    }
+    if (this.state.items.some(i => i.code === f.code)) {
+      this.say(`รหัส ${f.code} มีอยู่แล้วในระบบ`, true);
+      return;
+    }
+
+    const item = {
+      code: f.code, name: f.name, category: f.category || '-', unit: f.unit,
+      weightPerUnit, shelfLife, minStock, storage: f.storage || '-',
+      mainSupplier: f.mainSupplier || null
+    };
+    const ok = await this.persist('เพิ่มวัตถุดิบ', () => db.insertItem(item, this.supplierIdByName(f.mainSupplier)));
+    if (!ok) return;
+    this.set(s => ({ items: s.items.concat([item]), itemForm: blankItem() }));
+    this.say(`เพิ่มวัตถุดิบ ${f.code} · ${f.name} เรียบร้อย`);
   }
 
   /* ---- receiving -------------------------------------------------------- */
@@ -243,7 +331,7 @@ class Store {
     return 'LOT-' + date.slice(2).replace(/-/g, '') + '-' + String(this.state.seq + 1).slice(-2);
   }
 
-  submitReceive() {
+  async submitReceive() {
     if (!this.guard('receive') || !this.requireBranch()) return;
 
     const f = this.state.receiveForm;
@@ -277,6 +365,9 @@ class Store {
       note: `${f.supplier || '-'} · ${f.ref || '-'}`
     };
 
+    const ok = await this.persist('บันทึกรับเข้า', () => db.insertReceipt(lot, move, this.supplierIdByName(f.supplier)));
+    if (!ok) return;
+
     this.set(s => ({
       lots: s.lots.concat([lot]),
       moves: s.moves.concat([move]),
@@ -289,7 +380,7 @@ class Store {
 
   /* ---- issuing ---------------------------------------------------------- */
 
-  submitIssue() {
+  async submitIssue() {
     if (!this.guard('issue') || !this.requireBranch()) return;
 
     const f = this.state.issueForm;
@@ -355,6 +446,15 @@ class Store {
       });
     }
 
+    const ok = await this.persist('บันทึกเบิกออก', async () => {
+      // Sequential, not a single transaction — see db.js's note on this.
+      for (const r of plan.rows) await db.updateLotQtyLeft(r.lot.id, r.lot.qtyLeft - r.take);
+      await db.insertMoves(issueMoves);
+      for (const lot of transferLots) await db.insertTransferLot(lot, this.supplierIdByName(lot.supplier));
+      if (transferMoves.length) await db.insertMoves(transferMoves);
+    });
+    if (!ok) return;
+
     const totalWeight = issueMoves.reduce((a, m) => a + m.weight, 0);
     const totalCost = issueMoves.reduce((a, m) => a + m.cost, 0);
 
@@ -373,7 +473,7 @@ class Store {
 
   /* ---- production output ------------------------------------------------ */
 
-  submitOutput() {
+  async submitOutput() {
     if (!this.guard('output') || !this.requireBranch()) return;
 
     const f = this.state.outputForm;
@@ -392,6 +492,9 @@ class Store {
       reject: Number(f.reject) || 0,
       staff: f.staff || '-'
     };
+
+    const ok = await this.persist('บันทึกผลผลิต', () => db.insertOutput(record));
+    if (!ok) return;
 
     // Report the day's yield including this record, not just this record's share.
     const issued = issuedOn(this.state, f.date);
@@ -427,7 +530,7 @@ class Store {
     }));
   }
 
-  addRecipe() {
+  async addRecipe() {
     if (!this.guard('recipe')) return;
 
     const f = this.state.recipeForm;
@@ -445,13 +548,15 @@ class Store {
       lines: plan.lines.map(l => ({ code: l.code, qty: Number(l.qty) }))
     };
 
+    const ok = await this.persist('บันทึกสูตร', () => db.insertRecipe(recipe));
+    if (!ok) return;
     this.set(s => ({ recipes: s.recipes.concat([recipe]), recipeForm: blankRecipe() }));
     this.say(`บันทึกสูตร ${id} · ${f.product} · วัตถุดิบ ${n(plan.kg, 3)} กก./หน่วย · ต้นทุนมาตรฐาน ${baht(plan.cost, 2)}`);
   }
 
   /* ---- suppliers -------------------------------------------------------- */
 
-  addSupplier() {
+  async addSupplier() {
     if (!this.guard('master')) return;
 
     const f = this.state.supplierForm;
@@ -464,6 +569,8 @@ class Store {
       phone: f.phone || '-', terms: f.terms || '-', cert: f.cert || '-',
       score: 80
     };
+    const ok = await this.persist('เพิ่มซัพพลายเออร์', () => db.insertSupplier(supplier));
+    if (!ok) return;
     this.set(s => ({ suppliers: s.suppliers.concat([supplier]), supplierForm: blankSupplier() }));
     this.say(`ลงทะเบียน ${id} · ${f.name} เรียบร้อย`);
   }

@@ -251,6 +251,20 @@ function restoreFocus(snapshot, root) {
   }
 }
 
+/** Shown while init() is fetching from Supabase, or if that fetch fails. */
+function bootScreen(state) {
+  return el('div', { class: 'login' },
+    el('div', { class: 'login__form', style: { maxWidth: '420px', margin: '0 auto', textAlign: 'center' } },
+      state.bootError
+        ? el('div', { class: 'stack', style: { gap: '10px' } },
+            el('h2', { text: 'เชื่อมต่อฐานข้อมูลไม่สำเร็จ' }),
+            el('p', { text: state.bootError }),
+            el('button', { class: 'btn btn--primary', text: 'ลองใหม่', onClick: () => store.init() }))
+        : el('p', { text: 'กำลังโหลดข้อมูล…' })
+    )
+  );
+}
+
 function mount() {
   const root = document.getElementById('root');
   document.documentElement.setAttribute('data-density', config.density);
@@ -258,13 +272,17 @@ function mount() {
   const draw = () => {
     const snapshot = captureFocus();
     const scroll = window.scrollY;
-    render(root, store.state.auth ? appView(store.state) : loginView());
+    const page = store.state.booting || store.state.bootError
+      ? bootScreen(store.state)
+      : store.state.auth ? appView(store.state) : loginView();
+    render(root, page);
     restoreFocus(snapshot, root);
     window.scrollTo({ top: scroll });
   };
 
   store.subscribe(draw);
   draw();
+  store.init();
 }
 
 mount();

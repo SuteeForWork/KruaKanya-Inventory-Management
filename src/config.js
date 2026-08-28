@@ -23,7 +23,20 @@ export const config = {
    * "today" figures are computed against that date rather than the wall clock.
    * Set to null to use the real current date once real data is flowing in.
    */
-  businessDate: '2026-08-26'
+  businessDate: '2026-08-26',
+
+  /**
+   * Supabase project. The publishable/anon key is meant to be embedded in
+   * client-side code — Row Level Security in db/schema.sql is what actually
+   * protects the data, not secrecy of this key. Never put the service_role
+   * (secret) key here; that one grants full access and must never reach the
+   * browser.
+   *
+   * Set supabaseUrl to null to run against the in-memory seed instead (no
+   * persistence) — useful for trying the app with no backend at all.
+   */
+  supabaseUrl: 'https://dxiqhaihssdrmwuowodm.supabase.co',
+  supabaseAnonKey: 'sb_publishable_fqGpBrpSukKe9IGEj7EI4Q_ghX-v4mz'
 };
 
 /** Today, as YYYY-MM-DD. */

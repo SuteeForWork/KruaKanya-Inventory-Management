@@ -2,7 +2,7 @@
 
 import { el, when } from '../dom.js';
 import {
-  card, fieldGrid, formCard, inputField, meter,
+  card, fieldGrid, formCard, inputField, meter, selectField,
   table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
@@ -30,6 +30,25 @@ function form() {
       inputField('ใบรับรอง', 'supplierForm', 'cert', { placeholder: 'GMP / HACCP / GAP' }),
       el('div', { class: 'field field--action' },
         el('button', { class: 'btn btn--primary btn--block', text: 'เพิ่มซัพพลายเออร์', onClick: () => store.addSupplier() }))
+    )
+  );
+}
+
+function itemForm(state) {
+  const supplierOptions = state.suppliers.map(s => ({ value: s.name, label: s.name }));
+  return formCard({ title: 'เพิ่มวัตถุดิบใหม่ (Item Master)' },
+    fieldGrid('xs',
+      inputField('รหัสวัตถุดิบ', 'itemForm', 'code', { placeholder: 'ING-VEG-020', mono: true }),
+      inputField('ชื่อวัตถุดิบ', 'itemForm', 'name', { placeholder: 'เช่น แครอทหั่นเต๋า' }),
+      inputField('หมวด', 'itemForm', 'category', { placeholder: 'ผักสด / เนื้อสัตว์ / ของแห้ง' }),
+      inputField('หน่วยนับ', 'itemForm', 'unit', { placeholder: 'ลัง / แพ็ค / ถุง' }),
+      inputField('น้ำหนักต่อ 1 หน่วย (กก.)', 'itemForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true }),
+      inputField('อายุวัตถุดิบ (วัน)', 'itemForm', 'shelfLife', { type: 'number', placeholder: '7', mono: true }),
+      inputField('ขั้นต่ำในคลัง (กก.)', 'itemForm', 'minStock', { type: 'number', placeholder: '20', mono: true }),
+      inputField('การจัดเก็บ', 'itemForm', 'storage', { placeholder: 'แช่เย็น 2–4°C' }),
+      selectField('ซัพพลายเออร์หลัก', 'itemForm', 'mainSupplier', supplierOptions, { placeholder: '— เลือกซัพพลายเออร์ —' }),
+      el('div', { class: 'field field--action' },
+        el('button', { class: 'btn btn--primary btn--block', text: 'เพิ่มวัตถุดิบ', onClick: () => store.addItem() }))
     )
   );
 }
@@ -82,6 +101,7 @@ export function masterView() {
     when(store.canEdit('master'), form),
     card({ title: 'ทะเบียนซัพพลายเออร์', note: `${state.suppliers.length} ราย` },
       table(SUPPLIER_HEAD, supplierRows(state))),
+    when(store.canEdit('master'), () => itemForm(state)),
     card({ title: 'รายละเอียดวัตถุดิบ (Item Master)' },
       table(ITEM_HEAD, itemRows(state)))
   );
