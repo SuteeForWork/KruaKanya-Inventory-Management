@@ -1,0 +1,8 @@
+# local env / secrets — never commit Supabase keys or other credentials here
+.env
+.env.*
+!.env.example
+
+# OS / editor noise
+.DS_Store
+*.log

@@ -1,0 +1,1814 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#F5EFE6;color:#2A2118;font-family:'Noto Sans Thai',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#D2542B;text-decoration:none}
+a:hover{color:#A93C18;text-decoration:underline}
+input,select,button,textarea{font-family:inherit;font-size:inherit;color:inherit}
+input:focus,select:focus{outline:2px solid #D2542B33;outline-offset:1px;border-color:#D2542B}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes riseIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#D8CCBB;border-radius:8px;border:3px solid transparent;background-clip:content-box}
+@media print{[data-print="hide"]{display:none!important}[data-print="grow"]{width:100%!important;flex:1 1 auto!important}body{background:#fff}}
+</style>
+</helmet>
+
+<sc-if value="{{ isLoggedOut }}" hint-placeholder-val="{{ true }}">
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;background:#F5EFE6">
+  <div style="width:100%;max-width:880px;display:grid;grid-template-columns:1.05fr .95fr;border-radius:16px;overflow:hidden;border:1px solid #E7DCCC;box-shadow:0 20px 50px #2A211A14">
+    <div style="background:#2A211A;color:#E3D7C9;padding:38px 34px;display:flex;flex-direction:column;gap:26px">
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="width:36px;height:36px;border-radius:10px;background:#D2542B;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#FFF6F1;font-family:'IBM Plex Mono',monospace">IN</div>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <div style="font-size:15px;font-weight:600;color:#FAF4EC">{{ companyName }}</div>
+          <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8A7A67;font-family:'IBM Plex Mono',monospace">Ingredient Inventory</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <h1 style="margin:0;font-size:26px;font-weight:600;line-height:1.35;color:#FAF4EC;text-wrap:pretty">ระบบจัดการวัตถุดิบอาหาร<br>รับเข้า · คงเหลือ · เบิกออก · Yield</h1>
+        <p style="margin:0;font-size:12.5px;line-height:1.8;color:#A69684">เข้าสู่ระบบเพื่อใช้งานตามสิทธิ์ของบทบาทคุณ ตัดสต๊อกแบบ FEFO คิดต้นทุนตามราคาจริงของแต่ละล็อต</p>
+      </div>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#8A7A67;font-family:'IBM Plex Mono',monospace">บัญชีตัวอย่าง · รหัสผ่าน 1234</span>
+        <div style="display:flex;flex-wrap:wrap;gap:7px">
+          <sc-for list="{{ demoAccounts }}" as="a" hint-placeholder-count="6">
+            <button onClick="{{ a.on }}" style="background:#33281F;border:1px solid #45362A;border-radius:20px;padding:6px 12px;font-size:11px;color:#DCCDBB;cursor:pointer;transition:border-color .12s ease" style-hover="border-color:#D2542B">{{ a.user }} · {{ a.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="background:#FFFCF7;padding:38px 34px;display:flex;flex-direction:column;gap:18px;justify-content:center">
+      <div>
+        <h2 style="margin:0 0 4px;font-size:17px;font-weight:600">เข้าสู่ระบบ</h2>
+        <p style="margin:0;font-size:12px;color:#7A6C5D">ใช้บัญชีที่ผู้ดูแลระบบกำหนดสิทธิ์ไว้</p>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11.5px;color:#7A6C5D">ชื่อผู้ใช้</span><input value="{{ lf.user.value }}" onChange="{{ lf.user.on }}" onKeyDown="{{ onLoginKey }}" placeholder="เช่น admin" style="border:1px solid #E2D6C4;border-radius:9px;padding:11px 12px;font-size:13px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:11.5px;color:#7A6C5D">รหัสผ่าน</span><input type="password" value="{{ lf.pass.value }}" onChange="{{ lf.pass.on }}" onKeyDown="{{ onLoginKey }}" placeholder="••••" style="border:1px solid #E2D6C4;border-radius:9px;padding:11px 12px;font-size:13px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+      <sc-if value="{{ loginErr }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:10px 12px;border-radius:9px;background:#F7E3DE;border:1px solid #EFCFC6;color:#8E3320;font-size:11.5px">{{ loginErr }}</div>
+      </sc-if>
+      <button onClick="{{ onLogin }}" style="background:#D2542B;color:#FFF8F4;border:0;border-radius:9px;padding:13px 20px;font-size:13px;font-weight:600;cursor:pointer;transition:background .12s ease" style-hover="background:#B2431F">เข้าสู่ระบบ</button>
+      <div style="font-size:11px;color:#948676;line-height:1.7">สิทธิ์การเข้าถึงแต่ละเมนูกำหนดโดยผู้ดูแลระบบในหน้า "ตั้งค่าสิทธิ์ผู้ใช้"</div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLoggedIn }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;align-items:stretch;min-height:100vh">
+
+  <aside data-print="hide" style="flex:0 0 248px;width:248px;background:#2A211A;color:#C4B6A4;display:flex;flex-direction:column;gap:22px;padding:22px 14px;position:sticky;top:0;height:100vh">
+    <div style="display:flex;align-items:center;gap:11px;padding:0 8px">
+      <div style="width:34px;height:34px;border-radius:10px;background:#D2542B;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#FFF6F1;font-family:'IBM Plex Mono',monospace">IN</div>
+      <div style="display:flex;flex-direction:column;gap:1px">
+        <div style="font-size:14px;font-weight:600;color:#FAF4EC">{{ companyName }}</div>
+        <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8A7A67;font-family:'IBM Plex Mono',monospace">Ingredient Inventory</div>
+      </div>
+    </div>
+
+    <nav style="display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="6">
+        <button onClick="{{ n.on }}" style="{{ n.style }}" style-hover="background:#3A2C22;color:#F6EEE4">
+          <span style="width:6px;height:6px;border-radius:50%;background:{{ n.dot }};flex:0 0 6px"></span>
+          <span style="flex:1;text-align:left">{{ n.label }}</span>
+          <sc-if value="{{ n.count }}" hint-placeholder-val="{{ true }}">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;padding:2px 7px;border-radius:20px;background:#3B2D23;color:#D9C4AE">{{ n.count }}</span>
+          </sc-if>
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:12px">
+      <div style="padding:13px;border-radius:12px;background:#33281F;border:1px solid #45362A">
+        <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8A7A67;font-family:'IBM Plex Mono',monospace;margin-bottom:5px">ต้นทุนคงคลังรวม</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:600;color:#F0A47F">{{ kpi.totalCost }}</div>
+        <div style="font-size:11px;color:#9C8B77;margin-top:3px">{{ kpi.lotCount }} ล็อต · {{ kpi.skuCount }} รายการ · {{ kpi.totalWeight }}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:0 8px 2px">
+        <div style="width:30px;height:30px;border-radius:50%;background:#463527;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#E3CDB6">{{ roleShort }}</div>
+        <div style="display:flex;flex-direction:column;flex:1;min-width:0">
+          <span style="font-size:12.5px;color:#E3D7C9">{{ rolePerson }}</span>
+          <span style="font-size:10.5px;color:#8A7A67">{{ roleLabel }}</span>
+        </div>
+        <button onClick="{{ onLogout }}" title="ออกจากระบบ" style="background:transparent;border:1px solid #45362A;border-radius:8px;padding:5px 9px;font-size:10.5px;color:#A69684;cursor:pointer;transition:border-color .12s ease" style-hover="border-color:#D2542B;color:#E3D7C9">ออก</button>
+      </div>
+    </div>
+  </aside>
+
+  <main data-print="grow" style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+    <header style="position:sticky;top:0;z-index:20;background:#F5EFE6F2;backdrop-filter:blur(10px);border-bottom:1px solid #E4D9C9;padding:15px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:210px">
+        <h1 style="margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em">{{ page.title }}</h1>
+        <p style="margin:2px 0 0;font-size:12px;color:#7A6C5D">{{ page.sub }}</p>
+      </div>
+      <div data-print="hide" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;background:#FFFCF7;border:1px solid #E2D6C4;border-radius:9px;padding:6px 9px 6px 7px">
+          <div style="width:26px;height:26px;border-radius:50%;background:#F0E3D3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#6B5A47">{{ roleShort }}</div>
+          <sc-if value="{{ roleFree }}" hint-placeholder-val="{{ true }}">
+            <select value="{{ roleValue }}" onChange="{{ onRole }}" style="border:0;outline:0;background:transparent;font-size:12px;font-weight:500;cursor:pointer">
+              <sc-for list="{{ roleOptions }}" as="r" hint-placeholder-count="6"><option value="{{ r.key }}">{{ r.optLabel }}</option></sc-for>
+            </select>
+          </sc-if>
+          <sc-if value="{{ roleLocked }}" hint-placeholder-val="{{ true }}">
+            <span style="font-size:12px;font-weight:500">{{ roleLabel }} · {{ rolePerson }}</span>
+          </sc-if>
+          <span style="font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:20px;background:{{ permBadgeBg }};color:{{ permBadgeFg }};white-space:nowrap">{{ permBadge }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;background:#FFFCF7;border:1px solid #E2D6C4;border-radius:9px;padding:7px 11px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:#A3947F">สาขา</span>
+          <sc-if value="{{ branchFree }}" hint-placeholder-val="{{ true }}">
+            <select value="{{ branchValue }}" onChange="{{ onBranch }}" style="border:0;outline:0;background:transparent;font-size:12px;font-weight:500;cursor:pointer">
+              <sc-for list="{{ branchOptions }}" as="b" hint-placeholder-count="5"><option value="{{ b.id }}">{{ b.optLabel }}</option></sc-for>
+            </select>
+          </sc-if>
+          <sc-if value="{{ branchLocked }}" hint-placeholder-val="{{ true }}">
+            <span style="font-size:12px;font-weight:500">{{ branchLabel }}</span>
+          </sc-if>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:#FFFCF7;border:1px solid #E2D6C4;border-radius:9px;padding:7px 11px;min-width:206px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#A3947F">⌕</span>
+          <input value="{{ searchVal }}" onChange="{{ onSearch }}" placeholder="ค้นหา ชื่อ / รหัส / ล็อต / ซัพพลายเออร์" style="border:0;outline:0;background:transparent;font-size:12px;width:100%">
+        </div>
+        <button onClick="{{ onExportExcel }}" style="display:flex;align-items:center;gap:6px;background:#FFFCF7;border:1px solid #E2D6C4;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:500;cursor:pointer;transition:border-color .12s ease" style-hover="border-color:#6F8B4F">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#5E7A42">XLS</span>Excel
+        </button>
+        <button onClick="{{ onExportPdf }}" style="display:flex;align-items:center;gap:6px;background:#FFFCF7;border:1px solid #E2D6C4;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:500;cursor:pointer;transition:border-color .12s ease" style-hover="border-color:#A93C18">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#A93C18">PDF</span>พิมพ์
+        </button>
+        <sc-if value="{{ canEditReceive }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ goReceive }}" style="background:#D2542B;color:#FFF8F4;border:0;border-radius:9px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:background .12s ease" style-hover="background:#B2431F">+ รับเข้า</button>
+        </sc-if>
+        <sc-if value="{{ canEditIssue }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ goIssue }}" style="background:#2A211A;color:#FBF5EE;border:0;border-radius:9px;padding:9px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:background .12s ease" style-hover="background:#3D2F24">− เบิกออก</button>
+        </sc-if>
+      </div>
+    </header>
+
+    <div key="{{ view }}" style="padding:20px 24px 56px;animation:fadeIn .16s ease both">
+
+      <sc-if value="{{ isDash }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:12px">
+            <sc-for list="{{ kpiCards }}" as="c" hint-placeholder-count="5">
+              <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:15px;display:flex;flex-direction:column;gap:7px;transition:border-color .12s ease" style-hover="border-color:#D8C6AE">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span style="font-size:11.5px;color:#7A6C5D">{{ c.label }}</span>
+                  <span style="width:7px;height:7px;border-radius:50%;background:{{ c.dot }}"></span>
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:25px;font-weight:600;letter-spacing:-.02em;color:{{ c.fg }}">{{ c.value }}</div>
+                <div style="font-size:11px;color:#948676">{{ c.hint }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px">
+            <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px">
+                <h2 style="margin:0;font-size:14px;font-weight:600">การเคลื่อนไหว 7 วันล่าสุด (กก.)</h2>
+                <div style="display:flex;gap:13px;font-size:11.5px;color:#7A6C5D">
+                  <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:#6F8B4F"></span>รับเข้า</span>
+                  <span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:#D2542B"></span>เบิกออก</span>
+                </div>
+              </div>
+              <div style="display:flex;align-items:flex-end;gap:12px;height:172px">
+                <sc-for list="{{ chart }}" as="d" hint-placeholder-count="7">
+                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%">
+                    <div style="flex:1;display:flex;align-items:flex-end;gap:4px;width:100%">
+                      <div title="{{ d.inLabel }}" style="flex:1;height:{{ d.inH }};background:#6F8B4F;border-radius:4px 4px 2px 2px;transition:opacity .12s ease" style-hover="opacity:.7"></div>
+                      <div title="{{ d.outLabel }}" style="flex:1;height:{{ d.outH }};background:#D2542B;border-radius:4px 4px 2px 2px;transition:opacity .12s ease" style-hover="opacity:.7"></div>
+                    </div>
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#948676">{{ d.label }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <h2 style="margin:0;font-size:14px;font-weight:600">ต้องจัดการวันนี้</h2>
+                <span style="font-size:11px;color:#948676;font-family:'IBM Plex Mono',monospace">{{ alertCount }} รายการ</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:7px;max-height:296px;overflow:auto">
+                <sc-for list="{{ alerts }}" as="a" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:10px;background:{{ a.bg }};border:1px solid {{ a.border }}">
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.title }}</div>
+                      <div style="font-size:10.5px;color:#7A6C5D;font-family:'IBM Plex Mono',monospace;margin-top:2px">{{ a.meta }}</div>
+                    </div>
+                    <span style="font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:20px;background:{{ a.badgeBg }};color:{{ a.badgeFg }};white-space:nowrap">{{ a.badge }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7;display:flex;align-items:center;justify-content:space-between">
+              <h2 style="margin:0;font-size:14px;font-weight:600">รายการเคลื่อนไหวล่าสุด</h2>
+              <button onClick="{{ goMovements }}" style="background:transparent;border:0;color:#D2542B;font-size:12px;font-weight:500;cursor:pointer">ดูรายงานทั้งหมด →</button>
+            </div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.mov }}" as="h" hint-placeholder-count="8"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ recentMoves }}" as="m" hint-placeholder-count="8">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ m.cellMono }}">{{ m.when }}</td>
+                      <td style="{{ m.cell }}"><span style="font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:20px;background:{{ m.typeBg }};color:{{ m.typeFg }}">{{ m.type }}</span></td>
+                      <td style="{{ m.cellMono }}">{{ m.doc }}</td>
+                      <td style="{{ m.cell }}">{{ m.item }}</td>
+                      <td style="{{ m.cellNum }}">{{ m.qty }}</td>
+                      <td style="{{ m.cellNum }}">{{ m.weight }}</td>
+                      <td style="{{ m.cellNum }}">{{ m.cost }}</td>
+                      <td style="{{ m.cell }}">{{ m.user }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isReceive }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <sc-if value="{{ canEditReceive }}" hint-placeholder-val="{{ true }}">
+          <div data-print="hide" style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+              <h2 style="margin:0;font-size:14.5px;font-weight:600">บันทึกรับวัตถุดิบเข้า</h2>
+              <span style="font-size:11px;color:#948676;font-family:'IBM Plex Mono',monospace">ล็อตถัดไป · {{ nextLotId }}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:11px">
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">วันที่รับเข้า</span><input type="date" value="{{ rf.recvDate.value }}" onChange="{{ rf.recvDate.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">เวลาที่รับเข้า</span><input type="time" value="{{ rf.recvTime.value }}" onChange="{{ rf.recvTime.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">รหัสวัตถุดิบ</span>
+                <select value="{{ rf.code.value }}" onChange="{{ onPickItem }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA">
+                  <option value="">— เลือกรหัส —</option>
+                  <sc-for list="{{ itemOptions }}" as="o" hint-placeholder-count="8"><option value="{{ o.code }}">{{ o.optLabel }}</option></sc-for>
+                </select>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ชื่อวัตถุดิบ</span><input value="{{ rf.name.value }}" onChange="{{ rf.name.on }}" placeholder="เช่น อกไก่สด" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ชื่อซัพพลายเออร์</span>
+                <select value="{{ rf.supplier.value }}" onChange="{{ rf.supplier.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA">
+                  <option value="">— เลือกซัพพลายเออร์ —</option>
+                  <sc-for list="{{ suppliers }}" as="s" hint-placeholder-count="5"><option value="{{ s.name }}">{{ s.name }}</option></sc-for>
+                </select>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ชื่อผู้จัดซื้อ</span><input value="{{ rf.buyer.value }}" onChange="{{ rf.buyer.on }}" placeholder="ชื่อผู้ทำ PO" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">วันที่ผลิต</span><input type="date" value="{{ rf.mfgDate.value }}" onChange="{{ rf.mfgDate.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">อายุวัตถุดิบ (วัน)</span><input type="number" value="{{ rf.shelfLife.value }}" onChange="{{ rf.shelfLife.on }}" placeholder="7" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">จำนวนที่รับเข้า (หน่วย)</span><input type="number" value="{{ rf.qtyIn.value }}" onChange="{{ rf.qtyIn.on }}" placeholder="20" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">น้ำหนักต่อ 1 หน่วย (กก.)</span><input type="number" value="{{ rf.weightPerUnit.value }}" onChange="{{ rf.weightPerUnit.on }}" placeholder="3" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ราคา ณ วันรับเข้า (บาท/หน่วย)</span><input type="number" value="{{ rf.pricePerUnit.value }}" onChange="{{ rf.pricePerUnit.on }}" placeholder="145" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">เลขที่ใบส่งของ / PO</span><input value="{{ rf.ref.value }}" onChange="{{ rf.ref.on }}" placeholder="PO-2608-0xx" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
+              <div style="display:flex;gap:22px;flex:1;min-width:250px;padding:11px 14px;border-radius:10px;background:#F8F1E6;border:1px solid #E7D9C4">
+                <div><div style="font-size:10.5px;color:#7A6C5D">น้ำหนักรับเข้ารวม</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#5E7A42">{{ receivePreview.weight }}</div></div>
+                <div><div style="font-size:10.5px;color:#7A6C5D">มูลค่ารวม</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#A93C18">{{ receivePreview.cost }}</div></div>
+                <div><div style="font-size:10.5px;color:#7A6C5D">วันหมดอายุ (คำนวณ)</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600">{{ receivePreview.expiry }}</div></div>
+                <div><div style="font-size:10.5px;color:#7A6C5D">ต้นทุน/กก.</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600">{{ receivePreview.perKg }}</div></div>
+              </div>
+              <button onClick="{{ onSubmitReceive }}" style="background:#D2542B;color:#FFF8F4;border:0;border-radius:9px;padding:12px 24px;font-size:12.5px;font-weight:600;cursor:pointer;transition:background .12s ease" style-hover="background:#B2431F">บันทึกรับเข้า</button>
+            </div>
+          </div>
+          </sc-if>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7"><h2 style="margin:0;font-size:14px;font-weight:600">ประวัติการรับเข้า ({{ receiptCount }} ล็อต)</h2></div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.recv }}" as="h" hint-placeholder-count="13"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ receiptRows }}" as="r" hint-placeholder-count="10">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ r.cellMono }}">{{ r.lotId }}</td>
+                      <td style="{{ r.cellMono }}">{{ r.when }}</td>
+                      <td style="{{ r.cell }}"><div style="font-weight:500">{{ r.name }}</div><div style="font-size:10.5px;color:#948676;font-family:'IBM Plex Mono',monospace">{{ r.code }}</div></td>
+                      <td style="{{ r.cell }}">{{ r.supplier }}</td>
+                      <td style="{{ r.cell }}">{{ r.buyer }}</td>
+                      <td style="{{ r.cellMono }}">{{ r.mfgDate }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.shelfLife }}</td>
+                      <td style="{{ r.cellMono }}">{{ r.expDate }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.qtyIn }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.weightIn }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.weightPerUnit }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.pricePerUnit }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.totalCost }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isStock }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+            <sc-for list="{{ stockStats }}" as="c" hint-placeholder-count="4">
+              <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:14px">
+                <div style="font-size:11px;color:#7A6C5D;margin-bottom:6px">{{ c.label }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:{{ c.fg }}">{{ c.value }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7"><h2 style="margin:0;font-size:14px;font-weight:600">วัตถุดิบคงเหลือ · สรุปตามรายการ</h2></div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.stock }}" as="h" hint-placeholder-count="8"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ stockRows }}" as="s" hint-placeholder-count="8">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ s.cell }}"><div style="font-weight:500">{{ s.name }}</div><div style="font-size:10.5px;color:#948676;font-family:'IBM Plex Mono',monospace">{{ s.code }} · {{ s.category }}</div></td>
+                      <td style="{{ s.cellNum }}">{{ s.qtyLeft }}</td>
+                      <td style="{{ s.cellNum }}">{{ s.weightLeft }}</td>
+                      <td style="{{ s.cell }}">
+                        <div style="display:flex;flex-direction:column;gap:4px;min-width:124px">
+                          <div style="height:6px;border-radius:6px;background:#EDE4D7;overflow:hidden"><div style="height:100%;width:{{ s.barW }};background:{{ s.barColor }};border-radius:6px"></div></div>
+                          <span style="font-size:10px;color:#948676;font-family:'IBM Plex Mono',monospace">ขั้นต่ำ {{ s.minStock }}</span>
+                        </div>
+                      </td>
+                      <td style="{{ s.cellNum }}">{{ s.oldestAge }}</td>
+                      <td style="{{ s.cellNum }}">{{ s.ageLeft }}</td>
+                      <td style="{{ s.cellNum }}">{{ s.cost }}</td>
+                      <td style="{{ s.cell }}"><span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:{{ s.badgeBg }};color:{{ s.badgeFg }}">{{ s.badge }}</span></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <h2 style="margin:0;font-size:14px;font-weight:600">รายละเอียดระดับล็อต (เรียงตาม FEFO)</h2>
+              <span style="font-size:11px;color:#948676">ล็อตที่หมดอายุก่อนจะถูกตัดออกก่อนอัตโนมัติ</span>
+            </div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.lot }}" as="h" hint-placeholder-count="10"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ lotRows }}" as="l" hint-placeholder-count="12">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ l.cellMono }}">{{ l.lotId }}</td>
+                      <td style="{{ l.cell }}"><span style="font-size:11px;color:#5C5144">{{ l.branchName }}</span></td>
+                      <td style="{{ l.cell }}"><div style="font-weight:500">{{ l.name }}</div><div style="font-size:10.5px;color:#948676;font-family:'IBM Plex Mono',monospace">{{ l.code }}</div></td>
+                      <td style="{{ l.cell }}">{{ l.supplier }}</td>
+                      <td style="{{ l.cellMono }}">{{ l.recvDate }}</td>
+                      <td style="{{ l.cellMono }}">{{ l.expDate }}</td>
+                      <td style="{{ l.cellNum }}">{{ l.ageLeft }}</td>
+                      <td style="{{ l.cellNum }}">{{ l.qtyLeft }}</td>
+                      <td style="{{ l.cellNum }}">{{ l.weightLeft }}</td>
+                      <td style="{{ l.cellNum }}">{{ l.pricePerUnit }}</td>
+                      <td style="{{ l.cellNum }}">{{ l.pricePerKg }}</td>
+                      <td style="{{ l.cellNum }}">{{ l.costLeft }}</td>
+                      <td style="{{ l.cell }}"><span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:{{ l.badgeBg }};color:{{ l.badgeFg }}">{{ l.badge }}</span></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isIssue }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <sc-if value="{{ canEditIssue }}" hint-placeholder-val="{{ true }}">
+          <div data-print="hide" style="display:grid;grid-template-columns:1.25fr 1fr;gap:12px">
+            <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px">
+              <h2 style="margin:0 0 14px;font-size:14.5px;font-weight:600">เบิกวัตถุดิบออก</h2>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:11px">
+                <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">รหัส / ชื่อวัตถุดิบ</span>
+                  <select value="{{ xf.code.value }}" onChange="{{ xf.code.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA">
+                    <option value="">— เลือกวัตถุดิบ —</option>
+                    <sc-for list="{{ stockOptions }}" as="o" hint-placeholder-count="8"><option value="{{ o.code }}">{{ o.optLabel }}</option></sc-for>
+                  </select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">จำนวนที่เบิกออก (หน่วย)</span><input type="number" value="{{ xf.qty.value }}" onChange="{{ xf.qty.on }}" placeholder="5" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+                <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ชื่อผู้เบิกออก</span><input value="{{ xf.issuer.value }}" onChange="{{ xf.issuer.on }}" placeholder="เช่น เชฟกวิน ร." style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+                <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ประเภทการเบิก</span>
+                  <select value="{{ xf.purpose.value }}" onChange="{{ xf.purpose.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA">
+                    <sc-for list="{{ purposes }}" as="p" hint-placeholder-count="4"><option value="{{ p.value }}">{{ p.value }}</option></sc-for>
+                  </select>
+                </label>
+                <sc-if value="{{ isTransfer }}" hint-placeholder-val="{{ true }}">
+                  <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">สาขาปลายทางที่รับโอน</span>
+                    <select value="{{ xf.dest.value }}" onChange="{{ xf.dest.on }}" style="border:1px solid #D2542B;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFF9F5">
+                      <option value="">— เลือกสาขาปลายทาง —</option>
+                      <sc-for list="{{ destOptions }}" as="b" hint-placeholder-count="3"><option value="{{ b.id }}">{{ b.optLabel }}</option></sc-for>
+                    </select>
+                  </label>
+                </sc-if>
+                <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ปลายทาง / หมายเหตุ</span><input value="{{ xf.note.value }}" onChange="{{ xf.note.on }}" placeholder="ครัวร้อน / สาขาสยาม" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              </div>
+              <button onClick="{{ onSubmitIssue }}" style="margin-top:14px;background:#2A211A;color:#FBF5EE;border:0;border-radius:9px;padding:12px 24px;font-size:12.5px;font-weight:600;cursor:pointer;transition:background .12s ease" style-hover="background:#3D2F24">ยืนยันการเบิกออก</button>
+            </div>
+
+            <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <h2 style="margin:0;font-size:14px;font-weight:600">ล็อตที่ระบบจะตัดออก</h2>
+                <span style="font-size:10.5px;color:#948676;font-family:'IBM Plex Mono',monospace">FEFO</span>
+              </div>
+              <sc-for list="{{ allocation }}" as="a" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:10px;background:#FAF5EE;border:1px solid #EDE1CE;animation:riseIn .14s ease both">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:12px;font-weight:500;font-family:'IBM Plex Mono',monospace">{{ a.lotId }}</div>
+                    <div style="font-size:10.5px;color:#7A6C5D;margin-top:2px">หมดอายุ {{ a.expDate }} · เหลืออายุ {{ a.ageLeft }}</div>
+                  </div>
+                  <div style="text-align:right">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600">{{ a.qty }}</div>
+                    <div style="font-size:10.5px;color:#7A6C5D;font-family:'IBM Plex Mono',monospace">{{ a.cost }}</div>
+                  </div>
+                </div>
+              </sc-for>
+              <div style="margin-top:auto;padding:12px;border-radius:10px;background:#F8F1E6;border:1px solid #E7D9C4;display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7A6C5D">น้ำหนักที่เบิกออก</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ issuePreview.weight }}</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7A6C5D">อายุวัตถุดิบ ณ วันเบิก</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600">{{ issuePreview.age }}</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:#7A6C5D">ราคาวัตถุดิบที่เบิกออก</span><span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#A93C18">{{ issuePreview.cost }}</span></div>
+                <div style="font-size:10.5px;color:#948676">{{ issuePreview.note }}</div>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7"><h2 style="margin:0;font-size:14px;font-weight:600">ประวัติการเบิกออก ({{ issueCount }} รายการ)</h2></div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.issue }}" as="h" hint-placeholder-count="9"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ issueRows }}" as="r" hint-placeholder-count="10">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ r.cellMono }}">{{ r.doc }}</td>
+                      <td style="{{ r.cellMono }}">{{ r.when }}</td>
+                      <td style="{{ r.cell }}"><div style="font-weight:500">{{ r.name }}</div><div style="font-size:10.5px;color:#948676;font-family:'IBM Plex Mono',monospace">{{ r.code }} · {{ r.lotId }}</div></td>
+                      <td style="{{ r.cellNum }}">{{ r.qty }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.weight }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.age }}</td>
+                      <td style="{{ r.cell }}">{{ r.issuer }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.cost }}</td>
+                      <td style="{{ r.cell }}"><span style="font-size:10.5px;padding:3px 8px;border-radius:20px;background:{{ r.tagBg }};color:{{ r.tagFg }}">{{ r.purpose }}</span></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isOutput }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+            <sc-for list="{{ outputStats }}" as="c" hint-placeholder-count="5">
+              <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+                  <span style="font-size:11px;color:#7A6C5D">{{ c.label }}</span>
+                  <span style="width:7px;height:7px;border-radius:50%;background:{{ c.dot }}"></span>
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:{{ c.fg }}">{{ c.value }}</div>
+                <div style="font-size:10.5px;color:#948676;margin-top:3px">{{ c.hint }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ canEditOutput }}" hint-placeholder-val="{{ true }}">
+          <div data-print="hide" style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+              <h2 style="margin:0;font-size:14.5px;font-weight:600">บันทึกยอดที่ผลิตได้</h2>
+              <span style="font-size:11px;color:#948676">ระบบจะเทียบกับน้ำหนักวัตถุดิบที่เบิกออกในวันเดียวกันอัตโนมัติ</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:11px">
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">วันที่ผลิต</span><input type="date" value="{{ of.date.value }}" onChange="{{ of.date.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">กะการผลิต</span>
+                <select value="{{ of.shift.value }}" onChange="{{ of.shift.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA">
+                  <sc-for list="{{ shifts }}" as="s" hint-placeholder-count="3"><option value="{{ s.value }}">{{ s.value }}</option></sc-for>
+                </select>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">สินค้า / เมนูที่ผลิต</span><input value="{{ of.product.value }}" onChange="{{ of.product.on }}" placeholder="เช่น ข้าวกล่องไก่ย่าง" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">จำนวนที่ผลิตได้</span><input type="number" value="{{ of.qty.value }}" onChange="{{ of.qty.on }}" placeholder="240" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">หน่วยผลผลิต</span><input value="{{ of.unit.value }}" onChange="{{ of.unit.on }}" placeholder="กล่อง / ถาด / ชิ้น" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">น้ำหนักผลผลิตรวม (กก.)</span><input type="number" value="{{ of.weight.value }}" onChange="{{ of.weight.on }}" placeholder="62" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ของเสียจากการผลิต (กก.)</span><input type="number" value="{{ of.reject.value }}" onChange="{{ of.reject.on }}" placeholder="0" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ผู้บันทึก</span><input value="{{ of.staff.value }}" onChange="{{ of.staff.on }}" placeholder="เช่น เชฟกวิน ร." style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
+              <div style="display:flex;gap:22px;flex:1;min-width:250px;padding:11px 14px;border-radius:10px;background:#F8F1E6;border:1px solid #E7D9C4">
+                <div><div style="font-size:10.5px;color:#7A6C5D">วัตถุดิบเบิกออกวันนั้น</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600">{{ outputPreview.issued }}</div></div>
+                <div><div style="font-size:10.5px;color:#7A6C5D">Yield ที่จะได้</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:{{ outputPreview.yieldFg }}">{{ outputPreview.yield }}</div></div>
+                <div><div style="font-size:10.5px;color:#7A6C5D">ต้นทุนวัตถุดิบ/หน่วยผลผลิต</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#A93C18">{{ outputPreview.perUnit }}</div></div>
+              </div>
+              <button onClick="{{ onSubmitOutput }}" style="background:#D2542B;color:#FFF8F4;border:0;border-radius:9px;padding:12px 24px;font-size:12.5px;font-weight:600;cursor:pointer;transition:background .12s ease" style-hover="background:#B2431F">บันทึกผลผลิต</button>
+            </div>
+          </div>
+          </sc-if>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <h2 style="margin:0;font-size:14px;font-weight:600">เทียบผลผลิตกับวัตถุดิบที่เบิกออก · รายวัน</h2>
+              <span style="font-size:11px;color:#948676">Yield = น้ำหนักผลผลิต ÷ น้ำหนักวัตถุดิบที่เบิกออก</span>
+            </div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.daily }}" as="h" hint-placeholder-count="10"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ dailyRows }}" as="d" hint-placeholder-count="7">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ d.cellMono }}">{{ d.date }}</td>
+                      <td style="{{ d.cell }}">{{ d.products }}</td>
+                      <td style="{{ d.cellNum }}">{{ d.qty }}</td>
+                      <td style="{{ d.cellNum }}">{{ d.outWeight }}</td>
+                      <td style="{{ d.cellNum }}">{{ d.issuedWeight }}</td>
+                      <td style="{{ d.cellNum }}">{{ d.planKg }}</td>
+                      <td style="{{ d.cellNum }}">{{ d.issuedCost }}</td>
+                      <td style="{{ d.cell }}">
+                        <div style="display:flex;align-items:center;gap:8px;min-width:120px">
+                          <div style="flex:1;height:6px;border-radius:6px;background:#EDE4D7;overflow:hidden"><div style="height:100%;width:{{ d.barW }};background:{{ d.barColor }}"></div></div>
+                          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:{{ d.barColor }}">{{ d.yield }}</span>
+                        </div>
+                      </td>
+                      <td style="{{ d.cellNum }}">{{ d.loss }}</td>
+                      <td style="{{ d.cellNum }}">{{ d.costPerUnit }}</td>
+                      <td style="{{ d.cell }}"><span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:{{ d.badgeBg }};color:{{ d.badgeFg }}">{{ d.badge }}</span></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7"><h2 style="margin:0;font-size:14px;font-weight:600">บันทึกผลผลิตรายรายการ ({{ outputCount }} รายการ)</h2></div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.out }}" as="h" hint-placeholder-count="7"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ outputRows }}" as="o" hint-placeholder-count="8">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ o.cellMono }}">{{ o.date }}</td>
+                      <td style="{{ o.cell }}">{{ o.shift }}</td>
+                      <td style="{{ o.cell }}">{{ o.product }}</td>
+                      <td style="{{ o.cellNum }}">{{ o.qty }}</td>
+                      <td style="{{ o.cellNum }}">{{ o.weight }}</td>
+                      <td style="{{ o.cellNum }}">{{ o.reject }}</td>
+                      <td style="{{ o.cellNum }}">{{ o.perUnitWeight }}</td>
+                      <td style="{{ o.cell }}">{{ o.staff }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isBranch }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <h2 style="margin:0;font-size:14px;font-weight:600">เทียบผลการดำเนินงานทุกสาขา ({{ branchCount }} สาขา)</h2>
+              <span style="font-size:11px;color:#948676">คลิก "เข้าดู" เพื่อสลับมุมมองไปที่สาขานั้น</span>
+            </div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.branch }}" as="h" hint-placeholder-count="11"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ branchRows }}" as="b" hint-placeholder-count="4">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ b.cellMono }}">{{ b.id }}</td>
+                      <td style="{{ b.cell }}"><div style="font-weight:500">{{ b.name }}</div><div style="font-size:10.5px;color:#948676">{{ b.type }}</div></td>
+                      <td style="{{ b.cell }}">{{ b.manager }}</td>
+                      <td style="{{ b.cellMono }}">{{ b.phone }}</td>
+                      <td style="{{ b.cellNum }}">{{ b.lots }}</td>
+                      <td style="{{ b.cellNum }}">{{ b.weight }}</td>
+                      <td style="{{ b.cellNum }}">{{ b.cost }}</td>
+                      <td style="{{ b.cellNum }}"><span style="color:{{ b.nearFg }};font-weight:600">{{ b.near }}</span></td>
+                      <td style="{{ b.cellNum }}">{{ b.waste }}</td>
+                      <td style="{{ b.cellNum }}"><span style="color:{{ b.yieldFg }};font-weight:600">{{ b.yieldTxt }}</span></td>
+                      <td style="{{ b.cell }}"><button onClick="{{ b.on }}" style="background:#FFFCF7;border:1px solid #E2D6C4;border-radius:7px;padding:5px 11px;font-size:11px;cursor:pointer;transition:border-color .12s ease" style-hover="border-color:#D2542B">เข้าดู</button></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <sc-if value="{{ canEditBranch }}" hint-placeholder-val="{{ true }}">
+          <div data-print="hide" style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px">
+            <h2 style="margin:0 0 14px;font-size:14.5px;font-weight:600">เพิ่มสาขาใหม่</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:11px">
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ชื่อสาขา</span><input value="{{ bf.name.value }}" onChange="{{ bf.name.on }}" placeholder="เช่น สาขาพระราม 9" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA" /></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ประเภท</span>
+                <select value="{{ bf.type.value }}" onChange="{{ bf.type.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA">
+                  <sc-for list="{{ branchTypes }}" as="t" hint-placeholder-count="3"><option value="{{ t.value }}">{{ t.value }}</option></sc-for>
+                </select>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ผู้จัดการสาขา</span><input value="{{ bf.manager.value }}" onChange="{{ bf.manager.on }}" placeholder="ชื่อ-นามสกุล" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA" /></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">เบอร์โทร</span><input value="{{ bf.phone.value }}" onChange="{{ bf.phone.on }}" placeholder="0x-xxx-xxxx" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace" /></label>
+              <div style="display:flex;align-items:flex-end">
+                <button onClick="{{ onAddBranch }}" style="background:#D2542B;color:#FFF8F4;border:0;border-radius:9px;padding:10px 20px;font-size:12.5px;font-weight:600;cursor:pointer;width:100%;transition:background .12s ease" style-hover="background:#B2431F">เพิ่มสาขา</button>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isAdminView }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <h2 style="margin:0;font-size:14px;font-weight:600">ตารางสิทธิ์การใช้งานแต่ละบทบาท</h2>
+              <div style="display:flex;align-items:center;gap:14px">
+                <span style="font-size:11px;color:#948676">คลิกช่องเพื่อสลับ: ไม่เห็นเมนู → ดูอย่างเดียว → แก้ไขได้</span>
+                <button onClick="{{ onResetPerms }}" style="background:#FFFCF7;border:1px solid #E2D6C4;border-radius:8px;padding:7px 13px;font-size:11.5px;cursor:pointer;transition:border-color .12s ease" style-hover="border-color:#D2542B">คืนค่าเริ่มต้น</button>
+              </div>
+            </div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.perm }}" as="h" hint-placeholder-count="9"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ permRows }}" as="r" hint-placeholder-count="6">
+                    <tr style="border-top:1px solid #EFE7DB">
+                      <td style="padding:9px 14px;vertical-align:middle">
+                        <div style="font-weight:500">{{ r.role }}</div>
+                        <div style="font-size:10.5px;color:#948676">{{ r.person }}</div>
+                      </td>
+                      <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="8">
+                        <td style="padding:6px 5px;vertical-align:middle;text-align:center">
+                          <button onClick="{{ c.on }}" style="{{ c.style }}" style-hover="transform:translateY(-1px)">{{ c.text }}</button>
+                        </td>
+                      </sc-for>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+            <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:16px">
+              <div style="font-size:12.5px;font-weight:600;margin-bottom:7px">ผู้ดูแลระบบ</div>
+              <div style="font-size:11.5px;color:#7A6C5D;line-height:1.7">ปรับแต่งได้ทุกส่วน — สูตร ค่าเตือนหมดอายุ เป้า Yield ทะเบียนวัตถุดิบ ซัพพลายเออร์ และสิทธิ์ของทุกบทบาท</div>
+            </div>
+            <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:16px">
+              <div style="font-size:12.5px;font-weight:600;margin-bottom:7px">พนักงานจัดซื้อ (ค่าเริ่มต้น)</div>
+              <div style="font-size:11.5px;color:#7A6C5D;line-height:1.7">แก้ไขได้เฉพาะ "รับวัตถุดิบเข้า" และ "เบิกวัตถุดิบออก" · ส่วนอื่นดูได้อย่างเดียว · ไม่เห็นหน้าผลผลิตและสูตร</div>
+            </div>
+            <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:16px">
+              <div style="font-size:12.5px;font-weight:600;margin-bottom:7px">การบังคับใช้</div>
+              <div style="font-size:11.5px;color:#7A6C5D;line-height:1.7">เมนูที่ไม่มีสิทธิ์จะถูกซ่อน ฟอร์มบันทึกจะไม่แสดงเมื่อมีสิทธิ์เพียงดูอย่างเดียว และการกดบันทึกจะถูกปฏิเสธพร้อมแจ้งเตือน</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isRecipe }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+            <sc-for list="{{ recipeStats }}" as="c" hint-placeholder-count="4">
+              <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+                  <span style="font-size:11px;color:#7A6C5D">{{ c.label }}</span>
+                  <span style="width:7px;height:7px;border-radius:50%;background:{{ c.dot }}"></span>
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:{{ c.fg }}">{{ c.value }}</div>
+                <div style="font-size:10.5px;color:#948676;margin-top:3px">{{ c.hint }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ canEditRecipe }}" hint-placeholder-val="{{ true }}">
+          <div data-print="hide" style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+              <h2 style="margin:0;font-size:14.5px;font-weight:600">ลงทะเบียนเมนูและสูตร (ต่อ 1 หน่วยผลผลิต)</h2>
+              <span style="font-size:11px;color:#948676">ระบบใช้สูตรนี้คำนวณวัตถุดิบที่ควรใช้ แล้วเทียบกับที่เบิกออกจริง</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:11px">
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ชื่อเมนู / สินค้า</span><input value="{{ rcf.product.value }}" onChange="{{ rcf.product.on }}" placeholder="เช่น ข้าวกล่องไก่ย่าง" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">หน่วยผลผลิต</span><input value="{{ rcf.unit.value }}" onChange="{{ rcf.unit.on }}" placeholder="กล่อง / ก้อน / ปอนด์" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">น้ำหนักสุทธิที่ควรได้ / หน่วย (กก.)</span><input type="number" value="{{ rcf.net.value }}" onChange="{{ rcf.net.on }}" placeholder="0.085" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ความสามารถผลิตสูงสุด / วัน (หน่วย)</span><input type="number" value="{{ rcf.capPerDay.value }}" onChange="{{ rcf.capPerDay.on }}" placeholder="600" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+            </div>
+            <div style="margin-top:14px;display:flex;flex-direction:column;gap:9px">
+              <span style="font-size:11px;color:#7A6C5D">วัตถุดิบในสูตร · ปริมาณต่อ 1 หน่วยผลผลิต</span>
+              <sc-for list="{{ recipeLines }}" as="l" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:1fr 140px 96px;gap:9px;align-items:center">
+                  <select value="{{ l.code.value }}" onChange="{{ l.code.on }}" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA">
+                    <option value="">— เลือกวัตถุดิบ —</option>
+                    <sc-for list="{{ itemOptions }}" as="o" hint-placeholder-count="8"><option value="{{ o.code }}">{{ o.optLabel }}</option></sc-for>
+                  </select>
+                  <input type="number" value="{{ l.qty.value }}" onChange="{{ l.qty.on }}" placeholder="กก. ต่อหน่วย" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#7A6C5D;text-align:right">{{ l.cost }}</span>
+                </div>
+              </sc-for>
+              <button onClick="{{ onAddLine }}" style="align-self:flex-start;background:transparent;border:1px dashed #D8C6AE;border-radius:8px;padding:7px 13px;font-size:11.5px;color:#7A6C5D;cursor:pointer;transition:border-color .12s ease" style-hover="border-color:#D2542B">+ เพิ่มวัตถุดิบในสูตร</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap">
+              <div style="display:flex;gap:22px;flex:1;min-width:250px;padding:11px 14px;border-radius:10px;background:#F8F1E6;border:1px solid #E7D9C4">
+                <div><div style="font-size:10.5px;color:#7A6C5D">วัตถุดิบตามสูตร / หน่วย</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600">{{ recipePreview.kg }}</div></div>
+                <div><div style="font-size:10.5px;color:#7A6C5D">ต้นทุนมาตรฐาน / หน่วย</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#A93C18">{{ recipePreview.cost }}</div></div>
+                <div><div style="font-size:10.5px;color:#7A6C5D">Yield มาตรฐานตามสูตร</div><div style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:#5E7A42">{{ recipePreview.yield }}</div></div>
+              </div>
+              <button onClick="{{ onAddRecipe }}" style="background:#D2542B;color:#FFF8F4;border:0;border-radius:9px;padding:12px 24px;font-size:12.5px;font-weight:600;cursor:pointer;transition:background .12s ease" style-hover="background:#B2431F">บันทึกสูตร</button>
+            </div>
+          </div>
+          </sc-if>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <h2 style="margin:0;font-size:14px;font-weight:600">เทียบสูตรกับการใช้จริง · แยกตามเมนู</h2>
+              <span style="font-size:11px;color:#948676">ยอดเบิกบันทึกเป็นรายวัน ระบบจึงปันส่วนให้แต่ละเมนูตามสัดส่วนสูตร — ตัวเลข "ใช้จริง" และ "Yield จริง" เป็นค่าประมาณ</span>
+            </div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.variance }}" as="h" hint-placeholder-count="9"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ varianceRows }}" as="v" hint-placeholder-count="7">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ v.cell }}"><div style="font-weight:500">{{ v.product }}</div><div style="font-size:10.5px;color:#948676">{{ v.batches }}</div></td>
+                      <td style="{{ v.cellNum }}">{{ v.qty }}</td>
+                      <td style="{{ v.cellNum }}">{{ v.planKg }}</td>
+                      <td style="{{ v.cellNum }}">{{ v.expectKg }}</td>
+                      <td style="{{ v.cellNum }}">{{ v.actualKg }}</td>
+                      <td style="{{ v.cellNum }}">{{ v.gapKg }}</td>
+                      <td style="{{ v.cellNum }}">{{ v.gapCost }}</td>
+                      <td style="{{ v.cell }}">
+                        <div style="display:flex;align-items:center;gap:8px;min-width:118px">
+                          <div style="flex:1;height:6px;border-radius:6px;background:#EDE4D7;overflow:hidden"><div style="height:100%;width:{{ v.barW }};background:{{ v.barColor }}"></div></div>
+                          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:{{ v.barColor }}">{{ v.achieved }}</span>
+                        </div>
+                      </td>
+                      <td style="{{ v.cell }}"><span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:{{ v.badgeBg }};color:{{ v.badgeFg }}">{{ v.badge }}</span></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7"><h2 style="margin:0;font-size:14px;font-weight:600">ทะเบียนเมนูและสูตร ({{ recipeCount }} เมนู)</h2></div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.recipe }}" as="h" hint-placeholder-count="7"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ recipeRows }}" as="r" hint-placeholder-count="7">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ r.cellMono }}">{{ r.id }}</td>
+                      <td style="{{ r.cell }}"><div style="font-weight:500">{{ r.product }}</div><div style="font-size:10.5px;color:#948676">ต่อ 1 {{ r.unit }}</div></td>
+                      <td style="{{ r.cell }}">{{ r.lines }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.planKg }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.net }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.stdYield }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.stdCost }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.stockUnits }}</td>
+                      <td style="{{ r.cellNum }}">{{ r.capPerDay }}</td>
+                      <td style="{{ r.cellNum }}"><span style="font-weight:600;color:{{ r.maxFg }}">{{ r.maxUnits }}</span></td>
+                      <td style="{{ r.cell }}"><span style="font-size:10.5px;color:#7A6C5D">{{ r.limitBy }}</span></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMaster }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <sc-if value="{{ canEditMaster }}" hint-placeholder-val="{{ true }}">
+          <div data-print="hide" style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;padding:18px">
+            <h2 style="margin:0 0 14px;font-size:14.5px;font-weight:600">ลงทะเบียนซัพพลายเออร์ใหม่</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:11px">
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ชื่อซัพพลายเออร์</span><input value="{{ sf.name.value }}" onChange="{{ sf.name.on }}" placeholder="เช่น สยามดรายกู๊ดส์" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ประเภทวัตถุดิบที่ส่ง</span><input value="{{ sf.category.value }}" onChange="{{ sf.category.on }}" placeholder="ผัก / เนื้อสัตว์ / ของแห้ง" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ผู้ติดต่อ</span><input value="{{ sf.contact.value }}" onChange="{{ sf.contact.on }}" placeholder="ชื่อ-นามสกุล" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">เบอร์โทร</span><input value="{{ sf.phone.value }}" onChange="{{ sf.phone.on }}" placeholder="0xx-xxx-xxxx" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA;font-family:'IBM Plex Mono',monospace"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">เงื่อนไขชำระเงิน</span><input value="{{ sf.terms.value }}" onChange="{{ sf.terms.on }}" placeholder="เครดิต 30 วัน" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11px;color:#7A6C5D">ใบรับรอง</span><input value="{{ sf.cert.value }}" onChange="{{ sf.cert.on }}" placeholder="GMP / HACCP / GAP" style="border:1px solid #E2D6C4;border-radius:8px;padding:8px 10px;font-size:12px;background:#FFFDFA"></label>
+              <div style="display:flex;align-items:flex-end">
+                <button onClick="{{ onAddSupplier }}" style="background:#D2542B;color:#FFF8F4;border:0;border-radius:9px;padding:10px 20px;font-size:12.5px;font-weight:600;cursor:pointer;width:100%;transition:background .12s ease" style-hover="background:#B2431F">เพิ่มซัพพลายเออร์</button>
+              </div>
+            </div>
+          </div>
+          </sc-if>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7;display:flex;align-items:center;justify-content:space-between">
+              <h2 style="margin:0;font-size:14px;font-weight:600">ทะเบียนซัพพลายเออร์</h2>
+              <span style="font-size:11px;color:#948676">{{ supplierCount }} ราย</span>
+            </div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.sup }}" as="h" hint-placeholder-count="8"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ supplierRows }}" as="s" hint-placeholder-count="6">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ s.cellMono }}">{{ s.id }}</td>
+                      <td style="{{ s.cell }}"><div style="font-weight:500">{{ s.name }}</div><div style="font-size:10.5px;color:#948676">{{ s.category }}</div></td>
+                      <td style="{{ s.cell }}">{{ s.contact }}</td>
+                      <td style="{{ s.cellMono }}">{{ s.phone }}</td>
+                      <td style="{{ s.cell }}">{{ s.terms }}</td>
+                      <td style="{{ s.cellMono }}">{{ s.cert }}</td>
+                      <td style="{{ s.cellNum }}">{{ s.purchase }}</td>
+                      <td style="{{ s.cell }}">
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <div style="width:42px;height:6px;border-radius:6px;background:#EDE4D7;overflow:hidden"><div style="height:100%;width:{{ s.scoreW }};background:{{ s.scoreColor }}"></div></div>
+                          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">{{ s.score }}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7"><h2 style="margin:0;font-size:14px;font-weight:600">รายละเอียดวัตถุดิบ (Item Master)</h2></div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.item }}" as="h" hint-placeholder-count="9"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ itemRows }}" as="i" hint-placeholder-count="8">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ i.cellMono }}">{{ i.code }}</td>
+                      <td style="{{ i.cell }}">{{ i.name }}</td>
+                      <td style="{{ i.cell }}">{{ i.category }}</td>
+                      <td style="{{ i.cell }}">{{ i.unit }}</td>
+                      <td style="{{ i.cellNum }}">{{ i.weightPerUnit }}</td>
+                      <td style="{{ i.cellNum }}">{{ i.shelfLife }}</td>
+                      <td style="{{ i.cellNum }}">{{ i.minStock }}</td>
+                      <td style="{{ i.cell }}">{{ i.storage }}</td>
+                      <td style="{{ i.cell }}">{{ i.mainSupplier }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMoves }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:13px">
+          <div data-print="hide" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <sc-for list="{{ movFilters }}" as="f" hint-placeholder-count="4">
+              <button onClick="{{ f.on }}" style="{{ f.style }}" style-hover="border-color:#D2542B">{{ f.label }}</button>
+            </sc-for>
+          </div>
+          <div style="background:#FFFCF7;border:1px solid #E7DCCC;border-radius:12px;overflow:hidden">
+            <div style="padding:15px 18px;border-bottom:1px solid #EDE4D7;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+              <h2 style="margin:0;font-size:14px;font-weight:600">รายงานการเคลื่อนไหววัตถุดิบ ({{ movementCount }} รายการ)</h2>
+              <div style="display:flex;gap:18px;font-size:11.5px;color:#7A6C5D">
+                <span>รับเข้า <strong style="font-family:'IBM Plex Mono',monospace;color:#5E7A42">{{ movSummary.in }}</strong></span>
+                <span>เบิกออก <strong style="font-family:'IBM Plex Mono',monospace;color:#A93C18">{{ movSummary.out }}</strong></span>
+                <span>ของเสีย <strong style="font-family:'IBM Plex Mono',monospace;color:#8A5A0C">{{ movSummary.waste }}</strong></span>
+                <span>มูลค่าสุทธิ <strong style="font-family:'IBM Plex Mono',monospace">{{ movSummary.net }}</strong></span>
+              </div>
+            </div>
+            <div style="overflow:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap">
+                <thead><tr style="background:#FAF5EE"><sc-for list="{{ head.report }}" as="h" hint-placeholder-count="10"><th style="{{ h.style }}">{{ h.label }}</th></sc-for></tr></thead>
+                <tbody>
+                  <sc-for list="{{ movementRows }}" as="m" hint-placeholder-count="14">
+                    <tr style="border-top:1px solid #EFE7DB;transition:background .1s ease" style-hover="background:#FBF7F0">
+                      <td style="{{ m.cellMono }}">{{ m.when }}</td>
+                      <td style="{{ m.cell }}"><span style="font-size:11px;color:#5C5144">{{ m.branchName }}</span></td>
+                      <td style="{{ m.cell }}"><span style="font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:20px;background:{{ m.typeBg }};color:{{ m.typeFg }}">{{ m.type }}</span></td>
+                      <td style="{{ m.cellMono }}">{{ m.doc }}</td>
+                      <td style="{{ m.cellMono }}">{{ m.lotId }}</td>
+                      <td style="{{ m.cell }}"><div style="font-weight:500">{{ m.item }}</div><div style="font-size:10.5px;color:#948676;font-family:'IBM Plex Mono',monospace">{{ m.code }}</div></td>
+                      <td style="{{ m.cellNum }}">{{ m.qty }}</td>
+                      <td style="{{ m.cellNum }}">{{ m.weight }}</td>
+                      <td style="{{ m.cellNum }}">{{ m.cost }}</td>
+                      <td style="{{ m.cell }}">{{ m.user }}</td>
+                      <td style="{{ m.cell }}">{{ m.note }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </main>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ true }}">
+    <div data-print="hide" style="position:fixed;right:22px;bottom:22px;z-index:60;display:flex;align-items:center;gap:11px;padding:13px 16px;border-radius:11px;background:#2A211A;color:#F6EEE4;box-shadow:0 14px 32px #2A211A40;animation:riseIn .16s ease both;max-width:390px">
+      <span style="width:8px;height:8px;border-radius:50%;background:{{ toast.dot }};flex:0 0 8px"></span>
+      <div style="font-size:12px;line-height:1.5">{{ toast.text }}</div>
+    </div>
+  </sc-if>
+</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;companyName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;ครัวกลาง สยามคิทเช่น&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;fefoWarnDays&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:3,&quot;min&quot;:1,&quot;max&quot;:14,&quot;step&quot;:1,&quot;unit&quot;:&quot;วัน&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;กฎการเตือน&quot;},&quot;yieldTarget&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:88,&quot;min&quot;:50,&quot;max&quot;:100,&quot;step&quot;:1,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;กฎการเตือน&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;compact&quot;,&quot;options&quot;:[&quot;compact&quot;,&quot;medium&quot;,&quot;roomy&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;การแสดงผล&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const seed = this.seed();
+    this.state = {
+      view: 'dash', lots: seed.lots, moves: seed.moves, suppliers: seed.suppliers, items: seed.items,
+      outputs: seed.outputs, recipes: seed.recipes,
+      rf: this.blankReceive(),
+      of: this.blankOutput(),
+      rcf: this.blankRecipe(),
+      xf: { code: '', qty: '', issuer: '', purpose: 'เบิกผลิต', note: '', dest: '' },
+      sf: { name: '', category: '', contact: '', phone: '', terms: '', cert: '' },
+      search: '', movFilter: 'ทั้งหมด', toast: null, seq: 40,
+      role: 'admin', perms: this.defaultPerms(),
+      auth: null, lf: { user: '', pass: '', err: '' },
+      branch: 'ALL', branches: this.seedBranches(), bf: { name: '', type: 'สาขาหน้าร้าน', manager: '', phone: '' }
+    };
+  }
+
+  TODAY() { return '2026-08-26'; }
+  ACCOUNTS() {
+    return [
+      { user: 'admin', pass: '1234', role: 'admin', branch: 'ALL' },
+      { user: 'purchase', pass: '1234', role: 'purchasing', branch: 'ALL' },
+      { user: 'store', pass: '1234', role: 'store', branch: 'BR-01' },
+      { user: 'chef', pass: '1234', role: 'kitchen', branch: 'BR-01' },
+      { user: 'siam', pass: '1234', role: 'store', branch: 'BR-02' },
+      { user: 'qa', pass: '1234', role: 'qa', branch: 'ALL' },
+      { user: 'exec', pass: '1234', role: 'exec', branch: 'ALL' }
+    ];
+  }
+  seedBranches() {
+    return [
+      { id: 'BR-01', name: 'ครัวกลาง บางนา', type: 'โรงผลิต', manager: 'ณัฐพล ส.', phone: '02-745-1120' },
+      { id: 'BR-02', name: 'สาขาสยาม', type: 'สาขาหน้าร้าน', manager: 'กมลชนก ท.', phone: '02-658-3341' },
+      { id: 'BR-03', name: 'สาขาอโศก', type: 'สาขาหน้าร้าน', manager: 'ธีรภัทร อ.', phone: '02-261-7788' },
+      { id: 'BR-04', name: 'สาขาเชียงใหม่', type: 'สาขาหน้าร้าน', manager: 'อรุณี พ.', phone: '053-217-440' }
+    ];
+  }
+  branchList() { return this.state.branches || this.seedBranches(); }
+  branchName(id) { const b = this.branchList().find(x => x.id === id); return b ? b.name : (id === 'ALL' ? 'ทุกสาขา' : id || '—'); }
+  activeBranch() { return this.state.branch || 'ALL'; }
+  isAllBranch() { return this.activeBranch() === 'ALL'; }
+  inBranch(x) { return this.isAllBranch() || (x.branch || 'BR-01') === this.activeBranch(); }
+  branchLots() { return this.state.lots.filter(l => this.inBranch(l)); }
+  branchMoves() { return this.state.moves.filter(m => this.inBranch(m)); }
+  branchOutputs() { return (this.state.outputs || []).filter(o => this.inBranch(o)); }
+  setBranch(id) {
+    const acc = this.state.auth;
+    if (acc && acc.branch !== 'ALL' && id !== acc.branch) { this.say('บัญชีนี้ผูกกับ ' + this.branchName(acc.branch) + ' เท่านั้น', true); return; }
+    this.setState({ branch: id });
+    this.say('เปลี่ยนมุมมองเป็น ' + this.branchName(id) + ' — ข้อมูลสต๊อก ต้นทุน และรายงานถูกกรองตามสาขานี้');
+  }
+  requireBranch() {
+    if (!this.isAllBranch()) return true;
+    this.say('เลือกสาขาที่ต้องการทำรายการก่อน (ตอนนี้อยู่ในมุมมองทุกสาขา)', true);
+    return false;
+  }
+  addBranch() {
+    if (!this.isAdmin()) { this.say('เฉพาะผู้ดูแลระบบเท่านั้นที่เพิ่มสาขาได้', true); return; }
+    const f = this.state.bf;
+    if (!f.name) { this.say('ระบุชื่อสาขาก่อนบันทึก', true); return; }
+    const id = 'BR-' + String(this.branchList().length + 1).padStart(2, '0');
+    this.setState(s => ({ branches: this.branchList().concat([{ id, name: f.name, type: f.type || 'สาขาหน้าร้าน', manager: f.manager || '-', phone: f.phone || '-' }]), bf: { name: '', type: 'สาขาหน้าร้าน', manager: '', phone: '' } }));
+    this.say('เพิ่ม ' + id + ' · ' + f.name + ' เรียบร้อย — พร้อมรับวัตถุดิบเข้าสาขานี้');
+  }
+  branchSummary() {
+    return this.branchList().map(b => {
+      const lots = this.state.lots.filter(l => (l.branch || 'BR-01') === b.id && l.qtyLeft > 0);
+      const moves = this.state.moves.filter(m => (m.branch || 'BR-01') === b.id);
+      const outs = (this.state.outputs || []).filter(o => (o.branch || 'BR-01') === b.id);
+      const cost = lots.reduce((a, l) => a + this.costOf(l), 0);
+      const weight = lots.reduce((a, l) => a + l.qtyLeft * l.weightPerUnit, 0);
+      const near = lots.filter(l => this.ageLeftOf(l) <= this.warnDays()).length;
+      const wasteCost = moves.filter(m => m.type === 'ตัดทิ้ง').reduce((a, m) => a + m.cost, 0);
+      const issW = moves.filter(m => m.type === 'เบิกออก').reduce((a, m) => a + m.weight, 0);
+      const outW = outs.reduce((a, o) => a + o.weight, 0);
+      return { b, lots: lots.length, cost, weight, near, wasteCost, yield: issW ? outW / issW * 100 : 0 };
+    });
+  }
+  firstViewFor(role) {
+    const P = (this.state.perms || this.defaultPerms())[role] || {};
+    return ['dash'].concat(this.SECTIONS().map(s => s.key)).find(k => P[k] !== 'none') || 'dash';
+  }
+  doLogin() {
+    const f = this.state.lf;
+    const u = (f.user || '').trim().toLowerCase();
+    if (!u || !f.pass) { this.setState(s => ({ lf: Object.assign({}, s.lf, { err: 'กรอกชื่อผู้ใช้และรหัสผ่านให้ครบ' }) })); return; }
+    const acc = this.ACCOUNTS().find(a => a.user === u);
+    if (!acc || acc.pass !== f.pass) { this.setState(s => ({ lf: Object.assign({}, s.lf, { err: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' }) })); return; }
+    const r = this.ROLES().find(x => x.key === acc.role);
+    this.setState({ auth: acc, role: acc.role, view: this.firstViewFor(acc.role), branch: acc.branch || 'ALL', lf: { user: '', pass: '', err: '' } });
+    this.say('เข้าสู่ระบบเป็น ' + r.person + ' · ' + r.label + ' · ' + this.branchName(acc.branch || 'ALL'));
+  }
+  doLogout() { this.setState({ auth: null, lf: { user: '', pass: '', err: '' } }); }
+  ROLES() {
+    return [
+      { key: 'admin', label: 'ผู้ดูแลระบบ', person: 'ณัฐพล ส.', short: 'ณพ' },
+      { key: 'purchasing', label: 'พนักงานจัดซื้อ', person: 'กมลชนก ท.', short: 'กช' },
+      { key: 'store', label: 'พนักงานคลัง', person: 'ธีรภัทร อ.', short: 'ธภ' },
+      { key: 'kitchen', label: 'ครัว / ฝ่ายผลิต', person: 'เชฟกวิน ร.', short: 'กว' },
+      { key: 'qa', label: 'QA / คุณภาพ', person: 'อรุณี พ.', short: 'อณ' },
+      { key: 'exec', label: 'ผู้บริหาร', person: 'ปิยะ ม.', short: 'ปย' }
+    ];
+  }
+  SECTIONS() {
+    return [
+      { key: 'dash', label: 'ภาพรวม' }, { key: 'receive', label: 'รับเข้า' }, { key: 'stock', label: 'คงเหลือ' },
+      { key: 'issue', label: 'เบิกออก' }, { key: 'output', label: 'ผลผลิต' }, { key: 'recipe', label: 'สูตร BOM' },
+      { key: 'master', label: 'ซัพพลายเออร์' }, { key: 'moves', label: 'รายงาน' }, { key: 'branch', label: 'สาขา' }
+    ];
+  }
+  defaultPerms() {
+    return {
+      admin: { dash: 'edit', receive: 'edit', stock: 'edit', issue: 'edit', output: 'edit', recipe: 'edit', master: 'edit', moves: 'edit', branch: 'edit' },
+      purchasing: { dash: 'view', receive: 'edit', stock: 'view', issue: 'edit', output: 'none', recipe: 'none', master: 'view', moves: 'view', branch: 'view' },
+      store: { dash: 'view', receive: 'edit', stock: 'view', issue: 'edit', output: 'view', recipe: 'view', master: 'view', moves: 'view', branch: 'view' },
+      kitchen: { dash: 'view', receive: 'none', stock: 'view', issue: 'edit', output: 'edit', recipe: 'view', master: 'none', moves: 'view', branch: 'none' },
+      qa: { dash: 'view', receive: 'view', stock: 'view', issue: 'none', output: 'view', recipe: 'edit', master: 'view', moves: 'view', branch: 'view' },
+      exec: { dash: 'view', receive: 'view', stock: 'view', issue: 'none', output: 'view', recipe: 'view', master: 'view', moves: 'view', branch: 'view' }
+    };
+  }
+  perm(section, role) {
+    const P = this.state.perms || this.defaultPerms();
+    const r = P[role || this.state.role] || {};
+    return r[section] || 'none';
+  }
+  canEdit(section) { return this.perm(section) === 'edit'; }
+  canSee(section) { return this.perm(section) !== 'none'; }
+  isAdmin() { return this.state.role === 'admin'; }
+  setRole(role) {
+    if (!this.state.auth || this.state.auth.role !== 'admin') { this.say('เฉพาะผู้ดูแลระบบเท่านั้นที่สลับมุมมองบทบาทได้', true); return; }
+    const first = ['dash'].concat(this.SECTIONS().map(s => s.key)).find(k => (this.state.perms[role] || {})[k] !== 'none');
+    const keep = (this.state.perms[role] || {})[this.state.view] !== 'none' && this.state.view !== 'admin';
+    const r = this.ROLES().find(x => x.key === role);
+    this.setState({ role, view: keep ? this.state.view : (first || 'dash') });
+    this.say('สลับมุมมองเป็น ' + r.label + ' (' + r.person + ') — เมนูและสิทธิ์แก้ไขปรับตามบทบาทแล้ว');
+  }
+  cyclePerm(role, section) {
+    if (!this.isAdmin()) { this.say('เฉพาะผู้ดูแลระบบเท่านั้นที่แก้สิทธิ์ได้', true); return; }
+    const order = ['none', 'view', 'edit'];
+    const cur = this.perm(section, role);
+    const next = order[(order.indexOf(cur) + 1) % 3];
+    this.setState(s => ({ perms: Object.assign({}, s.perms, { [role]: Object.assign({}, s.perms[role], { [section]: next }) }) }));
+  }
+  guard(section) {
+    if (this.canEdit(section)) return true;
+    const r = this.ROLES().find(x => x.key === this.state.role);
+    this.say('บทบาท "' + r.label + '" ไม่มีสิทธิ์แก้ไขส่วนนี้ — ติดต่อผู้ดูแลระบบ', true);
+    return false;
+  }
+  availableKg(code) { return this.liveLots().filter(l => l.code === code && this.ageLeftOf(l) > 0).reduce((a, l) => a + l.qtyLeft * l.weightPerUnit, 0); }
+  capacityOf(r) {
+    const p = this.recipePlan(r);
+    if (!p.lines.length) return { units: 0, limit: '—', stockUnits: 0 };
+    let units = Infinity, limit = '—';
+    p.lines.forEach(l => {
+      const avail = this.availableKg(l.code);
+      const u = Math.floor(avail / Number(l.qty));
+      if (u < units) { units = u; const it = this.state.items.find(i => i.code === l.code); limit = (it ? it.name : l.code) + ' (' + this.n(avail, 1) + ' กก.)'; }
+    });
+    const stockUnits = units === Infinity ? 0 : units;
+    const cap = Number(r.capPerDay) || 0;
+    return { stockUnits, capPerDay: cap, units: cap ? Math.min(stockUnits, cap) : stockUnits, limit, bound: cap && cap < stockUnits ? 'กำลังผลิต' : 'วัตถุดิบ' };
+  }
+  blankRecipe() { return { product: '', unit: 'กล่อง', net: '', capPerDay: '', lines: [{ code: '', qty: '' }, { code: '', qty: '' }, { code: '', qty: '' }] }; }
+  blankOutput() { return { date: '2026-08-26', shift: 'กะเช้า 05:00–13:00', product: '', qty: '', unit: 'กล่อง', weight: '', reject: '', staff: 'เชฟกวิน ร.' }; }
+  blankReceive() { return { recvDate: '2026-08-26', recvTime: '08:30', code: '', name: '', supplier: '', buyer: 'ณัฐพล ส.', mfgDate: '2026-08-25', shelfLife: '', qtyIn: '', weightPerUnit: '', pricePerUnit: '', ref: '' }; }
+
+  seed() {
+    const items = [
+      { code: 'ING-VEG-004', name: 'ผักกาดหอมสด', category: 'ผักสด', unit: 'ลัง', weightPerUnit: 3, shelfLife: 7, minStock: 24, storage: 'แช่เย็น 2–4°C', mainSupplier: 'ส.เจริญผักสด' },
+      { code: 'ING-VEG-018', name: 'มะเขือเทศราชินี', category: 'ผักสด', unit: 'ตะกร้า', weightPerUnit: 4, shelfLife: 10, minStock: 20, storage: 'แช่เย็น 6–8°C', mainSupplier: 'ส.เจริญผักสด' },
+      { code: 'ING-MEA-011', name: 'อกไก่สดไม่มีหนัง', category: 'เนื้อสัตว์', unit: 'แพ็ค', weightPerUnit: 1, shelfLife: 5, minStock: 40, storage: 'แช่เย็น 0–2°C', mainSupplier: 'ไทยฟาร์มโปรตีน' },
+      { code: 'ING-MEA-021', name: 'หมูสามชั้นชิ้น', category: 'เนื้อสัตว์', unit: 'ถาด', weightPerUnit: 2, shelfLife: 6, minStock: 30, storage: 'แช่เย็น 0–2°C', mainSupplier: 'ไทยฟาร์มโปรตีน' },
+      { code: 'ING-SEA-007', name: 'กุ้งขาวแช่แข็ง 31/40', category: 'อาหารทะเล', unit: 'กล่อง', weightPerUnit: 1.5, shelfLife: 120, minStock: 30, storage: 'แช่แข็ง −18°C', mainSupplier: 'อันดามันซีฟู้ด' },
+      { code: 'ING-DAI-005', name: 'วิปปิ้งครีมสด 1L', category: 'นม/ไข่', unit: 'ลัง', weightPerUnit: 12, shelfLife: 45, minStock: 36, storage: 'แช่เย็น 2–6°C', mainSupplier: 'เดลี่แลนด์ ดิสทริบิวชั่น' },
+      { code: 'ING-DRY-002', name: 'แป้งสาลีอเนกประสงค์', category: 'ของแห้ง', unit: 'ถุง', weightPerUnit: 22.5, shelfLife: 365, minStock: 90, storage: 'แห้ง 25°C', mainSupplier: 'สยามดรายกู๊ดส์' },
+      { code: 'ING-SAU-009', name: 'ซอสหอยนางรมเข้มข้น', category: 'เครื่องปรุง', unit: 'ลัง', weightPerUnit: 9.6, shelfLife: 540, minStock: 24, storage: 'แห้ง 25°C', mainSupplier: 'สยามดรายกู๊ดส์' }
+    ];
+    const suppliers = [
+      { id: 'SUP-001', name: 'ส.เจริญผักสด', category: 'ผักและผลไม้', contact: 'คุณสมชาย เจริญผล', phone: '081-234-5678', terms: 'เครดิต 15 วัน', cert: 'GAP', score: 92 },
+      { id: 'SUP-002', name: 'ไทยฟาร์มโปรตีน', category: 'เนื้อสัตว์', contact: 'คุณพิมพ์ชนก ว.', phone: '02-551-8890', terms: 'เครดิต 30 วัน', cert: 'GMP/HACCP', score: 96 },
+      { id: 'SUP-003', name: 'อันดามันซีฟู้ด', category: 'อาหารทะเลแช่แข็ง', contact: 'คุณธีรพงษ์ ก.', phone: '076-334-221', terms: 'เงินสด', cert: 'HACCP/BRC', score: 88 },
+      { id: 'SUP-004', name: 'เดลี่แลนด์ ดิสทริบิวชั่น', category: 'นม เนย ไข่', contact: 'คุณอรวรรณ ป.', phone: '02-118-4477', terms: 'เครดิต 30 วัน', cert: 'GMP', score: 84 },
+      { id: 'SUP-005', name: 'สยามดรายกู๊ดส์', category: 'ของแห้งและเครื่องปรุง', contact: 'คุณวรุตม์ ส.', phone: '02-909-1120', terms: 'เครดิต 45 วัน', cert: 'GMP/ฮาลาล', score: 90 }
+    ];
+    const L = (id, code, sup, buyer, rd, rt, mfg, qtyIn, qtyLeft, price, ref) => {
+      const it = items.find(i => i.code === code);
+      return { id, code, name: it.name, unit: it.unit, weightPerUnit: it.weightPerUnit, shelfLife: it.shelfLife, supplier: sup, buyer, recvDate: rd, recvTime: rt, mfgDate: mfg, qtyIn, qtyLeft, pricePerUnit: price, ref };
+    };
+    const lots = [
+      L('LOT-260819-01', 'ING-DRY-002', 'สยามดรายกู๊ดส์', 'ณัฐพล ส.', '2026-08-19', '09:05', '2026-06-02', 12, 7, 610, 'PO-2608-014'),
+      L('LOT-260820-02', 'ING-SAU-009', 'สยามดรายกู๊ดส์', 'ณัฐพล ส.', '2026-08-20', '09:20', '2026-03-11', 8, 5, 1180, 'PO-2608-014'),
+      L('LOT-260821-01', 'ING-SEA-007', 'อันดามันซีฟู้ด', 'กมลชนก ท.', '2026-08-21', '06:40', '2026-07-28', 24, 18, 495, 'PO-2608-021'),
+      L('LOT-260822-01', 'ING-VEG-004', 'ส.เจริญผักสด', 'กมลชนก ท.', '2026-08-22', '06:15', '2026-08-21', 14, 4, 168, 'PO-2608-025'),
+      L('LOT-260823-01', 'ING-MEA-011', 'ไทยฟาร์มโปรตีน', 'ณัฐพล ส.', '2026-08-23', '07:10', '2026-08-22', 40, 12, 158, 'PO-2608-026'),
+      L('LOT-260823-02', 'ING-DAI-005', 'เดลี่แลนด์ ดิสทริบิวชั่น', 'อรุณี พ.', '2026-08-23', '10:35', '2026-08-14', 6, 4, 1560, 'PO-2608-027'),
+      L('LOT-260824-01', 'ING-VEG-018', 'ส.เจริญผักสด', 'กมลชนก ท.', '2026-08-24', '06:25', '2026-08-23', 10, 6, 320, 'PO-2608-031'),
+      L('LOT-260824-02', 'ING-MEA-021', 'ไทยฟาร์มโปรตีน', 'ณัฐพล ส.', '2026-08-24', '07:30', '2026-08-23', 18, 11, 296, 'PO-2608-031'),
+      L('LOT-260825-01', 'ING-VEG-004', 'ส.เจริญผักสด', 'กมลชนก ท.', '2026-08-25', '06:10', '2026-08-24', 16, 16, 174, 'PO-2608-034'),
+      L('LOT-260825-02', 'ING-MEA-011', 'ไทยฟาร์มโปรตีน', 'ณัฐพล ส.', '2026-08-25', '07:05', '2026-08-24', 36, 34, 162, 'PO-2608-034'),
+      L('LOT-260826-01', 'ING-SEA-007', 'อันดามันซีฟู้ด', 'ธีรภัทร อ.', '2026-08-26', '06:50', '2026-08-10', 20, 20, 502, 'PO-2608-038'),
+      L('LOT-260826-02', 'ING-DAI-005', 'เดลี่แลนด์ ดิสทริบิวชั่น', 'อรุณี พ.', '2026-08-26', '08:15', '2026-08-20', 8, 8, 1585, 'PO-2608-038')
+    ];
+    const bmap = ['BR-01', 'BR-01', 'BR-02', 'BR-01', 'BR-01', 'BR-03', 'BR-02', 'BR-01', 'BR-01', 'BR-01', 'BR-02', 'BR-03'];
+    lots.forEach((l, i) => { l.branch = bmap[i] || 'BR-01'; });
+    const moves = [];
+    lots.forEach(l => moves.push({ branch: l.branch, id: 'RC-' + l.id.slice(4), type: 'รับเข้า', lotId: l.id, code: l.code, name: l.name, date: l.recvDate, time: l.recvTime, qty: l.qtyIn, weight: l.qtyIn * l.weightPerUnit, cost: l.qtyIn * l.pricePerUnit, user: l.buyer, purpose: 'รับเข้าคลัง', note: l.supplier + ' · ' + l.ref }));
+    const OUT = (doc, lotId, date, time, qty, user, purpose, note) => {
+      const l = lots.find(x => x.id === lotId);
+      return { branch: l.branch, id: doc, type: purpose === 'ตัดทิ้ง/ของเสีย' ? 'ตัดทิ้ง' : 'เบิกออก', lotId, code: l.code, name: l.name, date, time, qty, weight: qty * l.weightPerUnit, cost: qty * l.pricePerUnit, user, purpose, note };
+    };
+    moves.push(OUT('IS-2608-101', 'LOT-260819-01', '2026-08-21', '05:40', 3, 'ณิชา บ.', 'เบิกผลิต', 'ครัวเบเกอรี่'));
+    moves.push(OUT('IS-2608-104', 'LOT-260820-02', '2026-08-22', '05:55', 3, 'เชฟกวิน ร.', 'เบิกผลิต', 'ครัวร้อน'));
+    moves.push(OUT('IS-2608-108', 'LOT-260821-01', '2026-08-23', '05:30', 6, 'เชฟกวิน ร.', 'เบิกผลิต', 'ครัวร้อน'));
+    moves.push(OUT('IS-2608-111', 'LOT-260822-01', '2026-08-23', '05:35', 6, 'ปิยะ ม.', 'เบิกผลิต', 'ครัวสลัด'));
+    moves.push(OUT('IS-2608-115', 'LOT-260823-01', '2026-08-24', '05:20', 16, 'เชฟกวิน ร.', 'เบิกผลิต', 'ครัวร้อน'));
+    moves.push(OUT('IS-2608-118', 'LOT-260822-01', '2026-08-25', '05:25', 3, 'ปิยะ ม.', 'ตัดทิ้ง/ของเสีย', 'ใบเหลือง เกินอายุ'));
+    moves.push(OUT('IS-2608-121', 'LOT-260823-01', '2026-08-25', '05:30', 12, 'เชฟกวิน ร.', 'เบิกผลิต', 'ครัวร้อน'));
+    moves.push(OUT('IS-2608-124', 'LOT-260823-02', '2026-08-25', '09:10', 2, 'ณิชา บ.', 'เบิกผลิต', 'ครัวเบเกอรี่'));
+    moves.push(OUT('IS-2608-127', 'LOT-260824-01', '2026-08-26', '05:20', 4, 'ปิยะ ม.', 'เบิกผลิต', 'ครัวสลัด'));
+    moves.push(OUT('IS-2608-130', 'LOT-260824-02', '2026-08-26', '05:35', 7, 'เชฟกวิน ร.', 'เบิกผลิต', 'ครัวร้อน'));
+    moves.push(OUT('IS-2608-133', 'LOT-260825-02', '2026-08-26', '05:45', 2, 'เชฟกวิน ร.', 'เบิกผลิต', 'ครัวร้อน'));
+    moves.push(OUT('IS-2608-136', 'LOT-260819-01', '2026-08-26', '06:05', 2, 'ณิชา บ.', 'เบิกผลิต', 'ครัวเบเกอรี่'));
+    const O = (date, shift, product, qty, unit, weight, reject, staff, branch) => ({ branch: branch || 'BR-01', id: 'PD-' + date.slice(2).replace(/-/g, '') + '-' + product.slice(0, 2), date, shift, product, qty, unit, weight, reject, staff });
+    const outputs = [
+      O('2026-08-21', 'กะเช้า 05:00–13:00', 'ขนมปังโฮลวีต', 240, 'ก้อน', 59.4, 2.1, 'ณิชา บ.'),
+      O('2026-08-22', 'กะเช้า 05:00–13:00', 'ข้าวกล่องผัดกะเพรา', 300, 'กล่อง', 25.8, 1.2, 'เชฟกวิน ร.'),
+      O('2026-08-23', 'กะเช้า 05:00–13:00', 'สลัดกุ้งซีซาร์', 180, 'กล่อง', 23.6, 1.6, 'ปิยะ ม.', 'BR-03'),
+      O('2026-08-24', 'กะเช้า 05:00–13:00', 'ข้าวกล่องไก่ย่าง', 210, 'กล่อง', 14.2, 0.9, 'เชฟกวิน ร.'),
+      O('2026-08-25', 'กะเช้า 05:00–13:00', 'ข้าวกล่องไก่ย่าง', 190, 'กล่อง', 11.4, 0.8, 'เชฟกวิน ร.'),
+      O('2026-08-25', 'กะบ่าย 13:00–21:00', 'เค้กวิปครีมสด', 64, 'ปอนด์', 21.1, 1.4, 'ณิชา บ.'),
+      O('2026-08-26', 'กะเช้า 05:00–13:00', 'ข้าวกล่องหมูสามชั้น', 240, 'กล่อง', 13.9, 1.7, 'เชฟกวิน ร.'),
+      O('2026-08-26', 'กะเช้า 05:00–13:00', 'สลัดผักรวมมะเขือเทศ', 150, 'กล่อง', 14.1, 1.1, 'ปิยะ ม.', 'BR-02'),
+      O('2026-08-26', 'กะบ่าย 13:00–21:00', 'ขนมปังโฮลวีต', 160, 'ก้อน', 40.2, 2.4, 'ณิชา บ.')
+    ];
+    const R = (id, product, unit, net, capPerDay, lines) => ({ id, product, unit, net, capPerDay, lines });
+    const recipes = [
+      R('BOM-001', 'ขนมปังโฮลวีต', 'ก้อน', 0.2475, 400, [{ code: 'ING-DRY-002', qty: 0.26 }]),
+      R('BOM-002', 'ข้าวกล่องผัดกะเพรา', 'กล่อง', 0.085, 600, [{ code: 'ING-MEA-011', qty: 0.06 }, { code: 'ING-SAU-009', qty: 0.03 }]),
+      R('BOM-003', 'สลัดกุ้งซีซาร์', 'กล่อง', 0.131, 300, [{ code: 'ING-SEA-007', qty: 0.05 }, { code: 'ING-VEG-004', qty: 0.09 }]),
+      R('BOM-004', 'ข้าวกล่องไก่ย่าง', 'กล่อง', 0.082, 600, [{ code: 'ING-MEA-011', qty: 0.07 }, { code: 'ING-VEG-004', qty: 0.02 }]),
+      R('BOM-005', 'เค้กวิปครีมสด', 'ปอนด์', 0.33, 120, [{ code: 'ING-DAI-005', qty: 0.28 }, { code: 'ING-DRY-002', qty: 0.09 }]),
+      R('BOM-006', 'ข้าวกล่องหมูสามชั้น', 'กล่อง', 0.058, 500, [{ code: 'ING-MEA-021', qty: 0.058 }, { code: 'ING-VEG-018', qty: 0.015 }]),
+      R('BOM-007', 'สลัดผักรวมมะเขือเทศ', 'กล่อง', 0.094, 350, [{ code: 'ING-VEG-004', qty: 0.06 }, { code: 'ING-VEG-018', qty: 0.048 }])
+    ];
+    return { items, suppliers, lots, moves, outputs, recipes };
+  }
+
+  n(v, d) { const x = Number(v) || 0; const f = d === undefined ? 0 : d; return x.toLocaleString('en-US', { minimumFractionDigits: f, maximumFractionDigits: f }); }
+  baht(v, d) { return '฿' + this.n(v, d); }
+  kg(v) { return this.n(v, 1) + ' กก.'; }
+  addDays(s, days) { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + Number(days || 0)); return d.toISOString().slice(0, 10); }
+  diffDays(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
+  short(s) { const d = new Date(s + 'T00:00:00'); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getFullYear() % 100); }
+  expiryOf(l) { return this.addDays(l.mfgDate, l.shelfLife); }
+  ageLeftOf(l) { return this.diffDays(this.TODAY(), this.expiryOf(l)); }
+  warnDays() { return Number(this.props.fefoWarnDays ?? 3); }
+  status(days) {
+    const w = this.warnDays();
+    if (days <= 0) return { label: 'หมดอายุ', bg: '#F7E3DE', fg: '#8E3320', border: '#EFCFC6', dot: '#A93C18' };
+    if (days <= w) return { label: 'ใกล้หมดอายุ', bg: '#FAEEDA', fg: '#8A5A0C', border: '#EEDCBC', dot: '#C4761C' };
+    if (days <= w * 3) return { label: 'เฝ้าระวัง', bg: '#F1EDE2', fg: '#5C5344', border: '#E4DCCB', dot: '#948676' };
+    return { label: 'ปกติ', bg: '#EDF1E3', fg: '#47632F', border: '#DDE5CC', dot: '#6F8B4F' };
+  }
+  cells() {
+    const d = this.props.density || 'compact';
+    const p = d === 'compact' ? '8px 14px' : d === 'roomy' ? '16px 16px' : '12px 16px';
+    return {
+      cell: 'padding:' + p + ';text-align:left;vertical-align:middle',
+      cellMono: 'padding:' + p + ";text-align:left;vertical-align:middle;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5C5144",
+      cellNum: 'padding:' + p + ";text-align:right;vertical-align:middle;font-family:'IBM Plex Mono',monospace;font-size:11px"
+    };
+  }
+  th(labels) {
+    const p = (this.props.density || 'compact') === 'compact' ? '8px 14px' : '11px 16px';
+    return labels.map(l => {
+      const right = l.indexOf('|R') > -1;
+      return { label: l.replace('|R', ''), style: 'padding:' + p + ';text-align:' + (right ? 'right' : 'left') + ';font-size:10.5px;font-weight:600;letter-spacing:.03em;color:#7A6C5D;white-space:nowrap' };
+    });
+  }
+  hit(s) { const q = (this.state.search || '').trim().toLowerCase(); return !q || String(s).toLowerCase().indexOf(q) > -1; }
+  say(text, bad) { this.setState({ toast: { text, dot: bad ? '#E38A6B' : '#9DBE72' } }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 4200); }
+  bind(form, field) { return { value: this.state[form][field], on: e => { const v = e.target.value; this.setState(s => ({ [form]: Object.assign({}, s[form], { [field]: v }) })); } }; }
+  liveLots() { return this.state.lots.filter(l => l.qtyLeft > 0 && this.inBranch(l)).slice().sort((a, b) => this.expiryOf(a) < this.expiryOf(b) ? -1 : 1); }
+  costOf(l) { return l.qtyLeft * l.pricePerUnit; }
+  allocate(code, qty) {
+    let need = Number(qty) || 0; const rows = [];
+    this.liveLots().filter(l => l.code === code).forEach(l => {
+      if (need <= 0) return;
+      const take = Math.min(need, l.qtyLeft); need -= take; rows.push({ lot: l, take });
+    });
+    return { rows, shortBy: need };
+  }
+
+  submitReceive() {
+    if (!this.guard('receive') || !this.requireBranch()) return;
+    const f = this.state.rf, it = this.state.items.find(i => i.code === f.code);
+    const name = f.name || (it ? it.name : ''), qty = Number(f.qtyIn) || 0;
+    const wpu = Number(f.weightPerUnit) || (it ? it.weightPerUnit : 0);
+    const price = Number(f.pricePerUnit) || 0, shelf = Number(f.shelfLife) || (it ? it.shelfLife : 0);
+    if (!f.code || !name || !qty || !price || !wpu) { this.say('กรอกไม่ครบ — ต้องมีรหัสวัตถุดิบ ชื่อ จำนวน น้ำหนัก/หน่วย และราคา', true); return; }
+    const seq = this.state.seq + 1;
+    const lotId = 'LOT-' + f.recvDate.slice(2).replace(/-/g, '') + '-' + String(seq).slice(-2);
+    const lot = { branch: this.activeBranch(), id: lotId, code: f.code, name, unit: it ? it.unit : 'หน่วย', weightPerUnit: wpu, shelfLife: shelf, supplier: f.supplier || '-', buyer: f.buyer || '-', recvDate: f.recvDate, recvTime: f.recvTime, mfgDate: f.mfgDate, qtyIn: qty, qtyLeft: qty, pricePerUnit: price, ref: f.ref || '-' };
+    const mv = { branch: this.activeBranch(), id: 'RC-' + lotId.slice(4), type: 'รับเข้า', lotId, code: f.code, name, date: f.recvDate, time: f.recvTime, qty, weight: qty * wpu, cost: qty * price, user: f.buyer || '-', purpose: 'รับเข้าคลัง', note: (f.supplier || '-') + ' · ' + (f.ref || '-') };
+    this.setState(s => ({ lots: s.lots.concat([lot]), moves: s.moves.concat([mv]), seq, rf: Object.assign(this.blankReceive(), { supplier: f.supplier, buyer: f.buyer }) }));
+    this.say('รับเข้า ' + lotId + ' · ' + name + ' ' + this.n(qty) + ' หน่วย (' + this.kg(qty * wpu) + ') มูลค่า ' + this.baht(qty * price));
+  }
+
+  submitIssue() {
+    if (!this.guard('issue') || !this.requireBranch()) return;
+    const f = this.state.xf, qty = Number(f.qty) || 0;
+    if (!f.code || !qty) { this.say('เลือกวัตถุดิบและระบุจำนวนที่ต้องการเบิกออก', true); return; }
+    const al = this.allocate(f.code, qty);
+    if (al.shortBy > 0) { this.say('สต๊อกไม่พอ — ขาดอีก ' + this.n(al.shortBy) + ' หน่วย', true); return; }
+    const seq = this.state.seq + 1, doc = 'IS-2608-' + (140 + seq - 40);
+    const lotsNext = this.state.lots.map(l => {
+      const h = al.rows.find(r => r.lot.id === l.id);
+      return h ? Object.assign({}, l, { qtyLeft: l.qtyLeft - h.take }) : l;
+    });
+    const waste = f.purpose === 'ตัดทิ้ง/ของเสีย';
+    const newMoves = al.rows.map((r, i) => ({
+      branch: this.activeBranch(), id: doc + (al.rows.length > 1 ? '-' + (i + 1) : ''), type: waste ? 'ตัดทิ้ง' : 'เบิกออก', lotId: r.lot.id, code: r.lot.code, name: r.lot.name,
+      date: this.TODAY(), time: new Date().toTimeString().slice(0, 5), qty: r.take, weight: r.take * r.lot.weightPerUnit, cost: r.take * r.lot.pricePerUnit,
+      user: f.issuer || '-', purpose: f.purpose, age: this.ageLeftOf(r.lot), note: (f.note || '-') + ' · อายุคงเหลือ ' + this.ageLeftOf(r.lot) + ' วัน'
+    }));
+    const tw = newMoves.reduce((a, m) => a + m.weight, 0), tc = newMoves.reduce((a, m) => a + m.cost, 0);
+    const from = this.activeBranch();
+    const transfer = f.purpose === 'เบิกโอนสาขา' && f.dest && f.dest !== from;
+    const extraLots = [], extraMoves = [];
+    if (transfer) al.rows.forEach((r, i) => {
+      const nid = r.lot.id + '-T' + (i + 1);
+      extraLots.push(Object.assign({}, r.lot, { id: nid, branch: f.dest, qtyIn: r.take, qtyLeft: r.take, recvDate: this.TODAY(), recvTime: newMoves[i].time, ref: doc }));
+      extraMoves.push({ branch: f.dest, id: 'RC-' + nid.slice(4), type: 'รับเข้า', lotId: nid, code: r.lot.code, name: r.lot.name, date: this.TODAY(), time: newMoves[i].time, qty: r.take, weight: r.take * r.lot.weightPerUnit, cost: r.take * r.lot.pricePerUnit, user: f.issuer || '-', purpose: 'รับโอนระหว่างสาขา', note: 'รับโอนจาก ' + this.branchName(from) + ' · ' + doc });
+    });
+    this.setState(s => ({ lots: lotsNext.concat(extraLots), moves: s.moves.concat(newMoves, extraMoves), seq, xf: Object.assign({}, f, { qty: '', note: '' }) }));
+    this.say(doc + ' · ' + newMoves[0].name + ' ' + this.n(qty) + ' หน่วย (' + this.kg(tw) + ') ต้นทุน ' + this.baht(tc) + (transfer ? ' · โอนเข้า ' + this.branchName(f.dest) + ' แล้ว' : ' ตัดจาก ' + newMoves.length + ' ล็อต'));
+  }
+
+  issuedOn(date) {
+    const ms = this.state.moves.filter(m => m.date === date && m.type === 'เบิกออก' && this.inBranch(m));
+    const waste = this.state.moves.filter(m => m.date === date && m.type === 'ตัดทิ้ง' && this.inBranch(m));
+    return { weight: ms.reduce((a, m) => a + m.weight, 0), cost: ms.reduce((a, m) => a + m.cost, 0), wasteWeight: waste.reduce((a, m) => a + m.weight, 0), wasteCost: waste.reduce((a, m) => a + m.cost, 0) };
+  }
+  pricePerKg(code) {
+    const ls = this.state.lots.filter(l => l.code === code);
+    if (!ls.length) return 0;
+    const l = ls[ls.length - 1];
+    return l.pricePerUnit / l.weightPerUnit;
+  }
+  recipeOf(product) { return (this.state.recipes || []).find(r => r.product === product); }
+  recipePlan(r) {
+    const lines = (r.lines || []).filter(l => l.code && Number(l.qty) > 0);
+    const kg = lines.reduce((a, l) => a + Number(l.qty), 0);
+    const cost = lines.reduce((a, l) => a + Number(l.qty) * this.pricePerKg(l.code), 0);
+    return { kg, cost, lines };
+  }
+  addRecipeLine() { this.setState(s => ({ rcf: Object.assign({}, s.rcf, { lines: s.rcf.lines.concat([{ code: '', qty: '' }]) }) })); }
+  setRecipeLine(i, field, v) {
+    this.setState(s => {
+      const lines = s.rcf.lines.map((l, j) => j === i ? Object.assign({}, l, { [field]: v }) : l);
+      return { rcf: Object.assign({}, s.rcf, { lines }) };
+    });
+  }
+  addRecipe() {
+    if (!this.guard('recipe')) return;
+    const f = this.state.rcf, plan = this.recipePlan(f);
+    if (!f.product || !plan.lines.length) { this.say('ต้องระบุชื่อเมนู และวัตถุดิบในสูตรอย่างน้อย 1 รายการ', true); return; }
+    const id = 'BOM-' + String((this.state.recipes || []).length + 1).padStart(3, '0');
+    const rec = { id, product: f.product, unit: f.unit || 'หน่วย', net: Number(f.net) || plan.kg, capPerDay: Number(f.capPerDay) || 0, lines: plan.lines.map(l => ({ code: l.code, qty: Number(l.qty) })) };
+    this.setState(s => ({ recipes: (s.recipes || []).concat([rec]), rcf: this.blankRecipe() }));
+    this.say('บันทึกสูตร ' + id + ' · ' + f.product + ' · วัตถุดิบ ' + this.n(plan.kg, 3) + ' กก./หน่วย · ต้นทุนมาตรฐาน ' + this.baht(plan.cost, 2));
+  }
+  yieldStatus(pct) {
+    const t = Number(this.props.yieldTarget ?? 88);
+    if (!pct) return { label: 'ไม่มีข้อมูล', bg: '#F1EDE2', fg: '#5C5344', color: '#948676' };
+    if (pct > 100) return { label: 'ข้อมูลไม่สมเหตุสมผล', bg: '#F7E3DE', fg: '#8E3320', color: '#A93C18' };
+    if (pct >= t) return { label: 'ถึงเป้า', bg: '#EDF1E3', fg: '#47632F', color: '#6F8B4F' };
+    if (pct >= t - 8) return { label: 'ต่ำกว่าเป้า', bg: '#FAEEDA', fg: '#8A5A0C', color: '#C4761C' };
+    return { label: 'ต้องตรวจสอบ', bg: '#F7E3DE', fg: '#8E3320', color: '#A93C18' };
+  }
+  submitOutput() {
+    if (!this.guard('output') || !this.requireBranch()) return;
+    const f = this.state.of, qty = Number(f.qty) || 0, wt = Number(f.weight) || 0;
+    if (!f.product || !qty || !wt) { this.say('กรอกไม่ครบ — ต้องมีชื่อสินค้า จำนวนที่ผลิตได้ และน้ำหนักผลผลิต', true); return; }
+    const rec = { branch: this.activeBranch(), id: 'PD-' + f.date.slice(2).replace(/-/g, '') + '-' + (this.state.outputs.length + 1), date: f.date, shift: f.shift, product: f.product, qty, unit: f.unit || 'หน่วย', weight: wt, reject: Number(f.reject) || 0, staff: f.staff || '-' };
+    const iss = this.issuedOn(f.date);
+    const pct = iss.weight ? wt / iss.weight * 100 : 0;
+    this.setState(s => ({ outputs: s.outputs.concat([rec]), of: Object.assign(this.blankOutput(), { date: f.date, shift: f.shift, unit: f.unit, staff: f.staff }) }));
+    this.say('บันทึกผลผลิต ' + f.product + ' ' + this.n(qty) + ' ' + rec.unit + ' (' + this.kg(wt) + ')' + (iss.weight ? ' · Yield รวมของวัน ' + this.n(pct, 1) + '%' : ' · ยังไม่มีการเบิกวัตถุดิบในวันนี้'));
+  }
+  addSupplier() {
+    if (!this.guard('master')) return;
+    const f = this.state.sf;
+    if (!f.name) { this.say('ระบุชื่อซัพพลายเออร์ก่อนบันทึก', true); return; }
+    const id = 'SUP-' + String(this.state.suppliers.length + 1).padStart(3, '0');
+    const s2 = { id, name: f.name, category: f.category || '-', contact: f.contact || '-', phone: f.phone || '-', terms: f.terms || '-', cert: f.cert || '-', score: 80 };
+    this.setState(s => ({ suppliers: s.suppliers.concat([s2]), sf: { name: '', category: '', contact: '', phone: '', terms: '', cert: '' } }));
+    this.say('ลงทะเบียน ' + id + ' · ' + f.name + ' เรียบร้อย');
+  }
+
+  csvRows() {
+    const v = this.state.view, M = this.branchMoves(), LOTS = this.branchLots(), OUTS = this.branchOutputs();
+    if (v === 'receive') return [['ล็อต', 'วันที่รับเข้า', 'เวลา', 'ชื่อวัตถุดิบ', 'รหัส', 'ซัพพลายเออร์', 'ผู้จัดซื้อ', 'วันที่ผลิต', 'อายุ(วัน)', 'วันหมดอายุ', 'จำนวนรับเข้า', 'น้ำหนักรับเข้า(กก.)', 'น้ำหนักต่อหน่วย(กก.)', 'ราคาต่อหน่วย', 'มูลค่ารวม']].concat(
+      LOTS.map(l => [l.id, l.recvDate, l.recvTime, l.name, l.code, l.supplier, l.buyer, l.mfgDate, l.shelfLife, this.expiryOf(l), l.qtyIn, l.qtyIn * l.weightPerUnit, l.weightPerUnit, l.pricePerUnit, l.qtyIn * l.pricePerUnit]));
+    if (v === 'branch') return [['รหัสสาขา', 'ชื่อสาขา', 'ประเภท', 'ผู้จัดการ', 'เบอร์โทร', 'ล็อตคงเหลือ', 'น้ำหนักคงเหลือ(กก.)', 'ต้นทุนคงคลัง', 'ล็อตใกล้หมดอายุ', 'มูลค่าของเสีย', 'Yield(%)']].concat(
+      this.branchSummary().map(r => [r.b.id, r.b.name, r.b.type, r.b.manager, r.b.phone, r.lots, r.weight.toFixed(1), r.cost, r.near, r.wasteCost, r.yield ? r.yield.toFixed(1) : '-']));
+    if (v === 'stock') return [['ล็อต', 'รหัส', 'ชื่อวัตถุดิบ', 'ซัพพลายเออร์', 'หน่วยนับ', 'วันที่รับเข้า', 'วันหมดอายุ', 'อายุคงเหลือ(วัน)', 'จำนวนคงเหลือ', 'น้ำหนักคงเหลือ(กก.)', 'ราคา ณ รับเข้า/หน่วย', 'ราคา ณ รับเข้า/กก.', 'ต้นทุนคงเหลือ']].concat(
+      this.liveLots().map(l => [l.id, l.code, l.name, l.supplier, l.unit, l.recvDate, this.expiryOf(l), this.ageLeftOf(l), l.qtyLeft, l.qtyLeft * l.weightPerUnit, l.pricePerUnit, (l.pricePerUnit / l.weightPerUnit).toFixed(2), this.costOf(l)]));
+    if (v === 'issue') return [['เลขที่เอกสาร', 'วันที่', 'เวลา', 'ชื่อวัตถุดิบ', 'รหัส', 'ล็อต', 'จำนวนเบิกออก', 'น้ำหนักเบิกออก(กก.)', 'อายุคงเหลือ ณ วันเบิก', 'ผู้เบิกออก', 'ราคาที่เบิกออก', 'ประเภท', 'หมายเหตุ']].concat(
+      M.filter(m => m.type !== 'รับเข้า').map(m => [m.id, m.date, m.time, m.name, m.code, m.lotId, m.qty, m.weight, m.age === undefined ? '-' : m.age, m.user, m.cost, m.purpose || '-', m.note || '-']));
+    if (v === 'recipe') {
+      const rows = [['รหัสสูตร', 'เมนู', 'หน่วยผลผลิต', 'วัตถุดิบในสูตร', 'วัตถุดิบต่อหน่วย(กก.)', 'ผลผลิตสุทธิต่อหน่วย(กก.)', 'Yield มาตรฐาน(%)', 'ต้นทุนมาตรฐานต่อหน่วย', 'ผลิตได้จากสต๊อก(หน่วย)', 'กำลังผลิตต่อวัน(หน่วย)', 'ผลิตได้สูงสุด(หน่วย)', 'ข้อจำกัด']];
+      (this.state.recipes || []).forEach(r => {
+        const p = this.recipePlan(r), c = this.capacityOf(r);
+        rows.push([r.id, r.product, r.unit, p.lines.map(l => l.code + ' ' + l.qty + ' กก.').join(' + '), p.kg.toFixed(3), Number(r.net).toFixed(3), p.kg ? (r.net / p.kg * 100).toFixed(1) : '-', p.cost.toFixed(2), c.stockUnits, r.capPerDay || '-', c.units, c.bound === 'กำลังผลิต' ? 'กำลังผลิตต่อวัน' : c.limit]);
+      });
+      return rows;
+    }
+    if (v === 'output') {
+      const dates = Array.from(new Set(OUTS.map(o => o.date))).sort().reverse();
+      const daily = [['วันที่', 'สินค้าที่ผลิต', 'จำนวนผลิตได้', 'น้ำหนักผลผลิต(กก.)', 'ของเสียจากการผลิต(กก.)', 'วัตถุดิบเบิกออก(กก.)', 'ต้นทุนวัตถุดิบที่เบิก', 'Yield(%)', 'ส่วนต่าง(กก.)', 'ต้นทุนวัตถุดิบต่อหน่วยผลผลิต']].concat(
+        dates.map(d => {
+          const os = OUTS.filter(o => o.date === d), iss = this.issuedOn(d);
+          const wt = os.reduce((a, o) => a + o.weight, 0), qty = os.reduce((a, o) => a + o.qty, 0);
+          const rj = os.reduce((a, o) => a + o.reject, 0);
+          return [d, os.map(o => o.product).join(' / '), qty, wt.toFixed(1), rj.toFixed(1), iss.weight.toFixed(1), iss.cost, iss.weight ? (wt / iss.weight * 100).toFixed(1) : '-', (iss.weight - wt).toFixed(1), qty ? (iss.cost / qty).toFixed(2) : '-'];
+        }));
+      return daily.concat([[''], ['บันทึกรายรายการ'], ['สาขา', 'วันที่', 'กะ', 'สินค้า', 'จำนวน', 'หน่วย', 'น้ำหนัก(กก.)', 'ของเสีย(กก.)', 'ผู้บันทึก']],
+        OUTS.slice().reverse().map(o => [this.branchName(o.branch), o.date, o.shift, o.product, o.qty, o.unit, o.weight, o.reject, o.staff]));
+    }
+    if (v === 'master') return [['ชนิดข้อมูล', 'รหัส', 'ชื่อ', 'รายละเอียด 1', 'รายละเอียด 2', 'รายละเอียด 3', 'รายละเอียด 4']].concat(
+      this.state.suppliers.map(s => ['Supplier', s.id, s.name, s.contact + ' / ' + s.phone, s.category, s.terms, s.cert + ' (คะแนน ' + s.score + ')']),
+      this.state.items.map(i => ['Item', i.code, i.name, i.category + ' / ' + i.unit, 'น้ำหนักต่อหน่วย ' + i.weightPerUnit + ' กก.', 'อายุ ' + i.shelfLife + ' วัน', i.storage + ' / ขั้นต่ำ ' + i.minStock + ' กก.']));
+    return [['สาขา', 'วันที่', 'เวลา', 'ประเภท', 'เลขที่เอกสาร', 'ล็อต', 'รหัส', 'ชื่อวัตถุดิบ', 'จำนวน', 'น้ำหนัก(กก.)', 'มูลค่า', 'ผู้ทำรายการ', 'หมายเหตุ']].concat(
+      this.sortedMoves().map(m => [this.branchName(m.branch), m.date, m.time, m.type, m.id, m.lotId, m.code, m.name, m.qty, m.weight, m.cost, m.user, m.note || '-']));
+  }
+  exportExcel() {
+    const csv = this.csvRows().map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = 'inventory-' + this.state.view + '-' + this.TODAY() + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    this.say('ส่งออก Excel (CSV, UTF-8) แล้ว — เปิดได้ทันทีใน Excel หรือ Google Sheets');
+  }
+  exportPdf() { this.say('เปิดหน้าต่างพิมพ์ — เลือก “Save as PDF” เพื่อบันทึกรายงานหน้านี้'); setTimeout(() => window.print(), 350); }
+
+  sortedMoves() {
+    return this.branchMoves().slice().sort((a, b) => (b.date + b.time) > (a.date + a.time) ? 1 : -1);
+  }
+
+  renderVals() {
+    if (!this.state.outputs || !this.state.of || !this.state.recipes || !this.state.rcf || !this.state.perms) {
+      const sd = this.seed();
+      this.state = Object.assign({}, this.state, {
+        perms: this.state.perms || this.defaultPerms(),
+        role: this.state.role || 'admin',
+        branches: this.state.branches || this.seedBranches(),
+        branch: this.state.branch || 'ALL',
+        bf: this.state.bf || { name: '', type: 'สาขาหน้าร้าน', manager: '', phone: '' },
+        outputs: this.state.outputs || sd.outputs,
+        recipes: this.state.recipes || sd.recipes,
+        rcf: this.state.rcf || this.blankRecipe(),
+        of: this.state.of || this.blankOutput(),
+        sf: this.state.sf || { name: '', category: '', contact: '', phone: '', terms: '', cert: '' }
+      });
+    }
+    const S = Object.assign({}, this.state, { lots: this.branchLots(), moves: this.branchMoves(), outputs: this.branchOutputs() });
+    const C = this.cells(), w = this.warnDays();
+    const live = this.liveLots();
+    const totalCost = live.reduce((a, l) => a + this.costOf(l), 0);
+    const totalWeight = live.reduce((a, l) => a + l.qtyLeft * l.weightPerUnit, 0);
+    const nearExp = live.filter(l => this.ageLeftOf(l) <= w && this.ageLeftOf(l) > 0);
+    const expired = live.filter(l => this.ageLeftOf(l) <= 0);
+
+    const byItem = S.items.map(it => {
+      const ls = live.filter(l => l.code === it.code);
+      const qtyLeft = ls.reduce((a, l) => a + l.qtyLeft, 0);
+      const wLeft = ls.reduce((a, l) => a + l.qtyLeft * l.weightPerUnit, 0);
+      const cost = ls.reduce((a, l) => a + this.costOf(l), 0);
+      const ages = ls.map(l => this.ageLeftOf(l));
+      const soonest = ages.length ? Math.min.apply(null, ages) : null;
+      const oldest = ls.length ? Math.max.apply(null, ls.map(l => this.diffDays(l.recvDate, this.TODAY()))) : null;
+      return { it, ls, qtyLeft, wLeft, cost, soonest, oldest };
+    });
+    const lowStock = byItem.filter(r => r.wLeft < r.it.minStock);
+
+    const nav = [
+      { key: 'dash', label: 'ภาพรวมคลังวัตถุดิบ' },
+      { key: 'receive', label: 'รับวัตถุดิบเข้า' },
+      { key: 'stock', label: 'วัตถุดิบคงเหลือ', count: byItem.filter(r => r.qtyLeft > 0).length },
+      { key: 'issue', label: 'เบิกวัตถุดิบออก' },
+      { key: 'output', label: 'ผลผลิตรายวัน (Yield)' },
+      { key: 'recipe', label: 'เมนู & สูตร (BOM)', count: (S.recipes || []).length },
+      { key: 'master', label: 'ซัพพลายเออร์ & วัตถุดิบ' },
+      { key: 'moves', label: 'รายงานการเคลื่อนไหว' },
+      { key: 'branch', label: 'จัดการสาขา', count: this.branchList().length }
+    ].filter(n => this.canSee(n.key)).concat(this.isAdmin() ? [{ key: 'admin', label: 'ตั้งค่าสิทธิ์ผู้ใช้' }] : []).map(n => {
+      const on = S.view === n.key;
+      return {
+        label: n.label, count: n.count, on: () => this.setState({ view: n.key }),
+        dot: on ? '#D2542B' : '#544335',
+        style: 'display:flex;align-items:center;gap:10px;width:100%;padding:9px 11px;border:0;border-radius:9px;cursor:pointer;font-size:12.5px;text-align:left;font-weight:' + (on ? '600' : '400') + ';background:' + (on ? '#3A2C22' : 'transparent') + ';color:' + (on ? '#FAF4EC' : '#AC9C89') + ';transition:background .12s ease,color .12s ease'
+      };
+    });
+
+    const pages = {
+      dash: { title: 'ภาพรวมคลังวัตถุดิบ', sub: 'ข้อมูล ณ 26 ส.ค. 2026 · อัปเดตอัตโนมัติจากทุกรายการรับเข้า–เบิกออก' },
+      receive: { title: 'รับวัตถุดิบเข้า', sub: 'บันทึกล็อตใหม่พร้อมวันผลิต อายุวัตถุดิบ น้ำหนักต่อหน่วย และราคา ณ วันรับเข้า' },
+      stock: { title: 'วัตถุดิบคงเหลือ', sub: 'น้ำหนัก จำนวน อายุคงเหลือ และต้นทุนที่จมอยู่ในคลัง แยกตามรายการและล็อต' },
+      issue: { title: 'เบิกวัตถุดิบออก', sub: 'ระบบตัดสต๊อกแบบ FEFO — ล็อตที่หมดอายุก่อนถูกเบิกออกก่อน พร้อมคิดต้นทุนจริงต่อล็อต' },
+      output: { title: 'ผลผลิตรายวัน & Yield', sub: 'บันทึกยอดที่ผลิตได้แต่ละวัน แล้วเทียบกับน้ำหนักและต้นทุนวัตถุดิบที่เบิกออกในวันเดียวกัน' },
+      recipe: { title: 'เมนู & สูตร (BOM)', sub: 'ลงทะเบียนสูตรต่อ 1 หน่วยผลผลิต แล้วเทียบวัตถุดิบที่ควรใช้กับที่เบิกออกจริง เพื่อหา waste ที่เสียไป' },
+      branch: { title: 'จัดการสาขา', sub: 'เทียบสต๊อก ต้นทุน ของเสีย และ Yield ของแต่ละสาขา · โอนวัตถุดิบระหว่างสาขาผ่านการเบิกออกแบบ "เบิกโอนสาขา"' },
+      admin: { title: 'ตั้งค่าสิทธิ์ผู้ใช้', sub: 'ผู้ดูแลระบบกำหนดได้ว่าแต่ละบทบาทเห็นและแก้ไขส่วนไหนได้ — คลิกที่ช่องเพื่อสลับสิทธิ์' },
+      master: { title: 'ซัพพลายเออร์ & รายละเอียดวัตถุดิบ', sub: 'ทะเบียนคู่ค้า เงื่อนไขการชำระ ใบรับรอง และข้อกำหนดของวัตถุดิบแต่ละตัว' },
+      moves: { title: 'รายงานการเคลื่อนไหว', sub: 'ประวัติทุกธุรกรรมพร้อมมูลค่า ส่งออกเป็น Excel หรือ PDF ได้ทันที' }
+    };
+
+    const chartDays = [];
+    for (let i = 6; i >= 0; i--) chartDays.push(this.addDays(this.TODAY(), -i));
+    const dayTotals = chartDays.map(d => {
+      const ms = S.moves.filter(m => m.date === d);
+      return { d, inW: ms.filter(m => m.type === 'รับเข้า').reduce((a, m) => a + m.weight, 0), outW: ms.filter(m => m.type !== 'รับเข้า').reduce((a, m) => a + m.weight, 0) };
+    });
+    const peak = Math.max(1, Math.max.apply(null, dayTotals.map(t => Math.max(t.inW, t.outW))));
+    const chart = dayTotals.map(t => ({
+      label: this.short(t.d).slice(0, 5),
+      inH: Math.max(3, Math.round(t.inW / peak * 100)) + '%', outH: Math.max(3, Math.round(t.outW / peak * 100)) + '%',
+      inLabel: 'รับเข้า ' + this.kg(t.inW), outLabel: 'เบิกออก ' + this.kg(t.outW)
+    }));
+
+    const alerts = [].concat(
+      expired.map(l => ({ l, kind: 'exp' })), nearExp.map(l => ({ l, kind: 'near' }))
+    ).map(x => {
+      const days = this.ageLeftOf(x.l), st = this.status(days);
+      return { title: x.l.name + ' · ' + x.l.id, meta: 'หมดอายุ ' + this.short(this.expiryOf(x.l)) + ' · คงเหลือ ' + this.n(x.l.qtyLeft) + ' หน่วย · ' + this.baht(this.costOf(x.l)), badge: days <= 0 ? 'หมดอายุแล้ว' : 'อีก ' + days + ' วัน', bg: st.bg, border: st.border, badgeBg: '#FFFCF7', badgeFg: st.fg };
+    }).concat(lowStock.map(r => ({
+      title: r.it.name + ' · ต่ำกว่าจุดสั่งซื้อ', meta: 'คงเหลือ ' + this.kg(r.wLeft) + ' / ขั้นต่ำ ' + this.n(r.it.minStock) + ' กก. · ' + r.it.mainSupplier,
+      badge: 'ควรสั่งซื้อ', bg: '#F1EDE2', border: '#E4DCCB', badgeBg: '#FFFCF7', badgeFg: '#5C5344'
+    })));
+
+    const wasteCost = S.moves.filter(m => m.type === 'ตัดทิ้ง').reduce((a, m) => a + m.cost, 0);
+    const todayOut = S.moves.filter(m => m.date === this.TODAY() && m.type !== 'รับเข้า');
+    const todayIn = S.moves.filter(m => m.date === this.TODAY() && m.type === 'รับเข้า');
+
+    const kpiCards = [
+      { label: 'ต้นทุนคงคลังรวม', value: this.baht(totalCost), hint: live.length + ' ล็อตที่ยังมีของ', dot: '#D2542B', fg: '#2A2118' },
+      { label: 'น้ำหนักคงเหลือรวม', value: this.n(totalWeight, 1), hint: 'กิโลกรัม · ' + byItem.filter(r => r.qtyLeft > 0).length + ' รายการวัตถุดิบ', dot: '#6F8B4F', fg: '#2A2118' },
+      { label: 'ใกล้หมดอายุ ≤ ' + w + ' วัน', value: this.n(nearExp.length), hint: 'มูลค่า ' + this.baht(nearExp.reduce((a, l) => a + this.costOf(l), 0)) + ' ที่ต้องใช้ก่อน', dot: '#C4761C', fg: nearExp.length ? '#8A5A0C' : '#2A2118' },
+      { label: 'ต่ำกว่าจุดสั่งซื้อ', value: this.n(lowStock.length), hint: lowStock.length ? lowStock.map(r => r.it.name).slice(0, 2).join(', ') : 'สต๊อกทุกตัวอยู่ในเกณฑ์', dot: '#948676', fg: '#2A2118' },
+      { label: 'เคลื่อนไหววันนี้', value: this.n(todayIn.length + todayOut.length), hint: 'รับเข้า ' + todayIn.length + ' · เบิกออก ' + todayOut.length + ' · ของเสียสะสม ' + this.baht(wasteCost), dot: '#A93C18', fg: '#2A2118' }
+    ];
+
+    const movTypeStyle = t => t === 'รับเข้า' ? { bg: '#EDF1E3', fg: '#47632F' } : t === 'ตัดทิ้ง' ? { bg: '#F7E3DE', fg: '#8E3320' } : { bg: '#FAEEDA', fg: '#8A5A0C' };
+    const movRow = m => {
+      const ts = movTypeStyle(m.type);
+      return Object.assign({}, C, {
+        when: this.short(m.date) + ' ' + m.time, branchName: this.branchName(m.branch), type: m.type, typeBg: ts.bg, typeFg: ts.fg, doc: m.id, lotId: m.lotId,
+        item: m.name, code: m.code, qty: this.n(m.qty), weight: this.n(m.weight, 1), cost: this.baht(m.cost), user: m.user, note: m.note || '-'
+      });
+    };
+
+    const sorted = this.sortedMoves();
+    const filtered = sorted.filter(m => (S.movFilter === 'ทั้งหมด' || (S.movFilter === 'รับเข้า' && m.type === 'รับเข้า') || (S.movFilter === 'เบิกออก' && m.type === 'เบิกออก') || (S.movFilter === 'ของเสีย' && m.type === 'ตัดทิ้ง')))
+      .filter(m => this.hit(m.name + ' ' + m.code + ' ' + m.lotId + ' ' + m.id + ' ' + m.user + ' ' + (m.note || '')));
+
+    const movFilters = ['ทั้งหมด', 'รับเข้า', 'เบิกออก', 'ของเสีย'].map(f => {
+      const on = S.movFilter === f;
+      return { label: f, on: () => this.setState({ movFilter: f }), style: 'padding:7px 14px;border-radius:20px;font-size:12px;cursor:pointer;font-weight:' + (on ? '600' : '400') + ';border:1px solid ' + (on ? '#D2542B' : '#E2D6C4') + ';background:' + (on ? '#D2542B' : '#FFFCF7') + ';color:' + (on ? '#FFF8F4' : '#5C5144') + ';transition:border-color .12s ease' };
+    });
+
+    const outDates = Array.from(new Set(S.outputs.map(o => o.date).concat(S.moves.filter(m => m.type === 'เบิกออก').map(m => m.date)))).sort().reverse();
+    const daily = outDates.map(d => {
+      const os = S.outputs.filter(o => o.date === d), iss = this.issuedOn(d);
+      const wt = os.reduce((a, o) => a + o.weight, 0), qty = os.reduce((a, o) => a + o.qty, 0);
+      const rj = os.reduce((a, o) => a + o.reject, 0);
+      const pct = iss.weight ? wt / iss.weight * 100 : 0;
+      return { d, os, iss, wt, qty, rj, pct };
+    });
+    const totQty = daily.reduce((a, r) => a + r.qty, 0), totWt = daily.reduce((a, r) => a + r.wt, 0);
+    const totIssW = daily.reduce((a, r) => a + r.iss.weight, 0), totIssC = daily.reduce((a, r) => a + r.iss.cost, 0);
+    const avgYield = totIssW ? totWt / totIssW * 100 : 0;
+    const today = daily.find(r => r.d === this.TODAY()) || { qty: 0, wt: 0, iss: { weight: 0, cost: 0 }, pct: 0, os: [] };
+    const byUnit = {};
+    (today.os || []).forEach(o => { byUnit[o.unit] = (byUnit[o.unit] || 0) + o.qty; });
+    const todayUnits = Object.keys(byUnit).map(u => this.n(byUnit[u]) + ' ' + u).join(' · ');
+    const target = Number(this.props.yieldTarget ?? 88);
+
+    const planOf = o => { const r = this.recipeOf(o.product); return r ? { r, p: this.recipePlan(r) } : null; };
+    daily.forEach(row => {
+      row.planKg = row.os.reduce((a, o) => { const pl = planOf(o); return a + (pl ? o.qty * pl.p.kg : 0); }, 0);
+    });
+    const variance = Array.from(new Set(S.outputs.map(o => o.product))).map(product => {
+      const os = S.outputs.filter(o => o.product === product);
+      const pl = planOf(os[0]);
+      const qty = os.reduce((a, o) => a + o.qty, 0);
+      const actualOut = os.reduce((a, o) => a + o.weight, 0);
+      const planKg = pl ? os.reduce((a, o) => a + o.qty * pl.p.kg, 0) : 0;
+      const expectKg = pl ? os.reduce((a, o) => a + o.qty * pl.r.net, 0) : 0;
+      const actualKg = os.reduce((a, o) => {
+        const row = daily.find(d => d.d === o.date);
+        if (!row || !row.planKg || !pl) return a;
+        return a + row.iss.weight * (o.qty * pl.p.kg / row.planKg);
+      }, 0);
+      const perKg = pl && pl.p.kg ? pl.p.cost / pl.p.kg : 0;
+      const gapKg = actualKg - planKg;
+      const achieved = actualKg ? actualOut / actualKg * 100 : 0;
+      const stdYield = pl && pl.p.kg ? pl.r.net / pl.p.kg * 100 : 0;
+      return { product, os, pl, qty, unit: os[0].unit, actualOut, planKg, expectKg, actualKg, gapKg, gapCost: gapKg * perKg, achieved, stdYield };
+    }).sort((a, b) => b.gapCost - a.gapCost);
+    const wasteTotal = variance.reduce((a, v) => a + Math.max(0, v.gapCost), 0);
+    const wasteKgTotal = variance.reduce((a, v) => a + Math.max(0, v.gapKg), 0);
+
+    const rfB = {}; Object.keys(S.rf).forEach(k => rfB[k] = this.bind('rf', k));
+    const rcfB = { product: this.bind('rcf', 'product'), unit: this.bind('rcf', 'unit'), net: this.bind('rcf', 'net') };
+    const ofB = {}; Object.keys(S.of).forEach(k => ofB[k] = this.bind('of', k));
+    const xfB = {}; Object.keys(S.xf).forEach(k => xfB[k] = this.bind('xf', k));
+    const sfB = {}; Object.keys(S.sf).forEach(k => sfB[k] = this.bind('sf', k));
+
+    const rp = (() => {
+      const f = S.rf, it = S.items.find(i => i.code === f.code);
+      const qty = Number(f.qtyIn) || 0, wpu = Number(f.weightPerUnit) || (it ? it.weightPerUnit : 0);
+      const price = Number(f.pricePerUnit) || 0, shelf = Number(f.shelfLife) || (it ? it.shelfLife : 0);
+      const kgTotal = qty * wpu;
+      return { weight: kgTotal ? this.kg(kgTotal) : '—', cost: qty * price ? this.baht(qty * price) : '—', expiry: shelf && f.mfgDate ? this.short(this.addDays(f.mfgDate, shelf)) : '—', perKg: kgTotal ? this.baht(qty * price / kgTotal, 2) : '—' };
+    })();
+
+    const al = S.xf.code ? this.allocate(S.xf.code, S.xf.qty) : { rows: [], shortBy: 0 };
+    const allocation = al.rows.map(r => ({ lotId: r.lot.id, expDate: this.short(this.expiryOf(r.lot)), ageLeft: this.ageLeftOf(r.lot) + ' วัน', qty: this.n(r.take) + ' ' + r.lot.unit, cost: this.baht(r.take * r.lot.pricePerUnit) }));
+    const ipW = al.rows.reduce((a, r) => a + r.take * r.lot.weightPerUnit, 0);
+    const ipC = al.rows.reduce((a, r) => a + r.take * r.lot.pricePerUnit, 0);
+    const issuePreview = {
+      weight: ipW ? this.kg(ipW) : '—', cost: ipC ? this.baht(ipC) : '—',
+      age: al.rows.length ? (al.rows.length > 1 ? this.ageLeftOf(al.rows[0].lot) + '–' + this.ageLeftOf(al.rows[al.rows.length - 1].lot) + ' วัน' : this.ageLeftOf(al.rows[0].lot) + ' วัน') : '—',
+      note: al.shortBy > 0 ? '⚠ สต๊อกไม่พอ ขาดอีก ' + this.n(al.shortBy) + ' หน่วย' : al.rows.length ? 'ต้นทุนคิดตามราคาจริงของแต่ละล็อต (FEFO)' : 'เลือกวัตถุดิบและจำนวนเพื่อดูล็อตที่จะถูกตัด'
+    };
+
+    return {
+      companyName: this.props.companyName ?? 'ครัวกลาง ครัวกัญญา',
+      view: S.view, page: pages[S.view],
+      isDash: S.view === 'dash', isReceive: S.view === 'receive', isStock: S.view === 'stock',
+      isIssue: S.view === 'issue', isMaster: S.view === 'master', isMoves: S.view === 'moves', isOutput: S.view === 'output', isRecipe: S.view === 'recipe', isAdminView: S.view === 'admin', isBranch: S.view === 'branch',
+      canEditBranch: this.canEdit('branch'),
+      canEditReceive: this.canEdit('receive'), canEditIssue: this.canEdit('issue'), canEditOutput: this.canEdit('output'),
+      canEditRecipe: this.canEdit('recipe'), canEditMaster: this.canEdit('master'),
+      roleLabel: (this.ROLES().find(r => r.key === S.role) || {}).label,
+      rolePerson: (this.ROLES().find(r => r.key === S.role) || {}).person,
+      roleShort: (this.ROLES().find(r => r.key === S.role) || {}).short,
+      roleOptions: this.ROLES().map(r => ({ key: r.key, optLabel: r.label + ' · ' + r.person })),
+      roleValue: S.role, onRole: e => this.setRole(e.target.value),
+      roleFree: !!(S.auth && S.auth.role === 'admin'), roleLocked: !(S.auth && S.auth.role === 'admin'),
+      isLoggedIn: !!S.auth, isLoggedOut: !S.auth,
+      lf: { user: this.bind('lf', 'user'), pass: this.bind('lf', 'pass') },
+      loginErr: S.lf.err, onLogin: () => this.doLogin(), onLogout: () => this.doLogout(),
+      onLoginKey: e => { if (e.key === 'Enter') this.doLogin(); },
+      demoAccounts: this.ACCOUNTS().map(a => {
+        const r = this.ROLES().find(x => x.key === a.role);
+        return { user: a.user, label: r.label, person: r.person, on: () => this.setState(s => ({ lf: { user: a.user, pass: '1234', err: '' } })) };
+      }),
+      permBadge: (S.view === 'admin' ? this.isAdmin() : this.canEdit(S.view)) ? 'แก้ไขได้' : 'ดูอย่างเดียว',
+      permBadgeBg: (S.view === 'admin' ? this.isAdmin() : this.canEdit(S.view)) ? '#EDF1E3' : '#F1EDE2',
+      permBadgeFg: (S.view === 'admin' ? this.isAdmin() : this.canEdit(S.view)) ? '#47632F' : '#5C5344',
+      permSections: this.SECTIONS().map(s => ({ label: s.label })),
+      permRows: this.ROLES().map(r => ({
+        role: r.label, person: r.person, locked: r.key === 'admin',
+        cells: this.SECTIONS().map(sec => {
+          const v = this.perm(sec.key, r.key);
+          const map = { edit: { t: 'แก้ไขได้', bg: '#EDF1E3', fg: '#47632F', bd: '#DDE5CC' }, view: { t: 'ดูอย่างเดียว', bg: '#F8F1E6', fg: '#8A5A0C', bd: '#EEDCBC' }, none: { t: 'ไม่เห็นเมนู', bg: '#FFFCF7', fg: '#948676', bd: '#E7DCCC' } }[v];
+          const locked = r.key === 'admin';
+          return {
+            text: locked ? map.t + ' · ล็อก' : map.t,
+            on: locked ? () => this.say('สิทธิ์ของผู้ดูแลระบบถูกล็อกไว้ ไม่สามารถลดสิทธิ์ตัวเองได้', true) : () => this.cyclePerm(r.key, sec.key),
+            style: 'width:100%;padding:7px 6px;border-radius:8px;font-size:11px;font-weight:500;border:1px solid ' + map.bd + ';background:' + map.bg + ';color:' + map.fg + ';cursor:' + (locked ? 'not-allowed' : 'pointer') + ';opacity:' + (locked ? '.62' : '1') + ';transition:transform .1s ease'
+          };
+        })
+      })),
+      branchValue: this.activeBranch(), branchLabel: this.branchName(this.activeBranch()),
+      branchLocked: !!(S.auth && S.auth.branch !== 'ALL'),
+      branchFree: !(S.auth && S.auth.branch !== 'ALL'),
+      onBranch: e => this.setBranch(e.target.value),
+      branchOptions: [{ id: 'ALL', optLabel: 'ทุกสาขา (รวมทั้งเครือ)' }].concat(this.branchList().map(b => ({ id: b.id, optLabel: b.id + ' · ' + b.name }))),
+      destOptions: this.branchList().filter(b => b.id !== this.activeBranch()).map(b => ({ id: b.id, optLabel: b.id + ' · ' + b.name })),
+      isTransfer: S.xf.purpose === 'เบิกโอนสาขา',
+      bf: { name: this.bind('bf', 'name'), type: this.bind('bf', 'type'), manager: this.bind('bf', 'manager'), phone: this.bind('bf', 'phone') },
+      onAddBranch: () => this.addBranch(), branchTypes: ['โรงผลิต', 'สาขาหน้าร้าน', 'คลังกระจายสินค้า'].map(v => ({ value: v })),
+      branchCount: this.branchList().length,
+      branchRows: this.branchSummary().map(r => {
+        const yst = this.yieldStatus(r.yield);
+        return Object.assign({}, C, {
+          id: r.b.id, name: r.b.name, type: r.b.type, manager: r.b.manager, phone: r.b.phone,
+          lots: this.n(r.lots), weight: this.n(r.weight, 1), cost: this.baht(r.cost),
+          near: r.near ? this.n(r.near) : '—', nearFg: r.near ? '#8E3320' : '#948676',
+          waste: r.wasteCost ? this.baht(r.wasteCost) : '—',
+          yieldTxt: r.yield ? this.n(r.yield, 1) + '%' : '—', yieldFg: yst.color,
+          on: () => this.setBranch(r.b.id)
+        });
+      }),
+      onResetPerms: () => { this.setState({ perms: this.defaultPerms() }); this.say('คืนค่าสิทธิ์เริ่มต้นของทุกบทบาทแล้ว'); },
+      nav, toast: S.toast, searchVal: S.search,
+      onSearch: e => this.setState({ search: e.target.value }),
+      onExportExcel: () => this.exportExcel(), onExportPdf: () => this.exportPdf(),
+      goReceive: () => this.setState({ view: 'receive' }), goIssue: () => this.setState({ view: 'issue' }), goMovements: () => this.setState({ view: 'moves' }),
+      kpi: { totalCost: this.baht(totalCost), lotCount: live.length, skuCount: byItem.filter(r => r.qtyLeft > 0).length, totalWeight: this.kg(totalWeight) },
+      kpiCards, chart, alerts, alertCount: alerts.length,
+      head: {
+        mov: this.th(['วันที่-เวลา', 'ประเภท', 'เลขที่', 'วัตถุดิบ', 'จำนวน|R', 'น้ำหนัก (กก.)|R', 'มูลค่า|R', 'ผู้ทำรายการ']),
+        recv: this.th(['ล็อต', 'วันที่-เวลารับเข้า', 'วัตถุดิบ', 'ซัพพลายเออร์', 'ผู้จัดซื้อ', 'วันที่ผลิต', 'อายุ (วัน)|R', 'วันหมดอายุ', 'จำนวนรับเข้า|R', 'น้ำหนักรับเข้า|R', 'น้ำหนัก/หน่วย|R', 'ราคา/หน่วย|R', 'มูลค่ารวม|R']),
+        stock: this.th(['วัตถุดิบ', 'จำนวนคงเหลือ|R', 'น้ำหนักคงเหลือ (กก.)|R', 'เทียบจุดสั่งซื้อ', 'อายุในคลัง (วัน)|R', 'อายุคงเหลือ (วัน)|R', 'ต้นทุนคงเหลือ|R', 'สถานะ']),
+        lot: this.th(['ล็อต', 'สาขา', 'วัตถุดิบ', 'ซัพพลายเออร์', 'วันรับเข้า', 'วันหมดอายุ', 'อายุคงเหลือ|R', 'จำนวน|R', 'น้ำหนัก (กก.)|R', 'ราคา ณ รับเข้า / หน่วย|R', 'ราคา ณ รับเข้า / กก.|R', 'ต้นทุนคงเหลือ|R', 'สถานะ']),
+        issue: this.th(['เลขที่เอกสาร', 'วันที่-เวลา', 'วัตถุดิบ / ล็อต', 'จำนวนเบิก|R', 'น้ำหนัก (กก.)|R', 'อายุคงเหลือ (วัน)|R', 'ผู้เบิกออก', 'ราคาที่เบิกออก|R', 'ประเภท']),
+        sup: this.th(['รหัส', 'ซัพพลายเออร์', 'ผู้ติดต่อ', 'เบอร์โทร', 'เงื่อนไขชำระ', 'ใบรับรอง', 'ยอดซื้อสะสม|R', 'คะแนนคู่ค้า']),
+        item: this.th(['รหัส', 'ชื่อวัตถุดิบ', 'หมวด', 'หน่วยนับ', 'น้ำหนัก/หน่วย (กก.)|R', 'อายุ (วัน)|R', 'ขั้นต่ำ (กก.)|R', 'การจัดเก็บ', 'ซัพพลายเออร์หลัก']),
+        report: this.th(['วันที่-เวลา', 'สาขา', 'ประเภท', 'เลขที่', 'ล็อต', 'วัตถุดิบ', 'จำนวน|R', 'น้ำหนัก (กก.)|R', 'มูลค่า|R', 'ผู้ทำรายการ', 'หมายเหตุ']),
+        daily: this.th(['วันที่', 'สินค้าที่ผลิต', 'จำนวนผลิตได้ (คละหน่วย)|R', 'น้ำหนักผลผลิต (กก.)|R', 'วัตถุดิบเบิกออก (กก.)|R', 'ตามสูตร (กก.)|R', 'ต้นทุนวัตถุดิบ|R', 'Yield', 'ส่วนต่าง (กก.)|R', 'ต้นทุน/หน่วยผลผลิต|R', 'สถานะ']),
+        out: this.th(['วันที่', 'กะการผลิต', 'สินค้า / เมนู', 'จำนวนที่ผลิตได้|R', 'น้ำหนักผลผลิต (กก.)|R', 'ของเสีย (กก.)|R', 'น้ำหนักต่อหน่วย|R', 'ผู้บันทึก']),
+        recipe: this.th(['รหัสสูตร', 'เมนู', 'วัตถุดิบในสูตร', 'วัตถุดิบ/หน่วย (กก.)|R', 'ผลผลิตสุทธิ/หน่วย (กก.)|R', 'Yield มาตรฐาน|R', 'ต้นทุนมาตรฐาน/หน่วย|R', 'ผลิตได้จากสต๊อก|R', 'กำลังผลิต/วัน|R', 'ผลิตได้สูงสุด|R', 'ข้อจำกัด']),
+        branch: this.th(['รหัส', 'สาขา', 'ผู้จัดการ', 'เบอร์โทร', 'ล็อตคงเหลือ|R', 'น้ำหนักคงเหลือ (กก.)|R', 'ต้นทุนคงคลัง|R', 'ใกล้หมดอายุ|R', 'มูลค่าของเสีย|R', 'Yield|R', '']),
+        perm: this.th(['บทบาท / ผู้ใช้ตัวอย่าง']).concat(this.SECTIONS().map(s => ({ label: s.label, style: 'padding:8px 10px;text-align:center;font-size:10.5px;font-weight:600;color:#7A6C5D;white-space:nowrap' }))),
+        variance: this.th(['เมนู', 'ผลิตได้|R', 'วัตถุดิบตามสูตร (กก.)|R', 'ควรได้ผลผลิต (กก.)|R', 'วัตถุดิบใช้จริง · ปันส่วน (กก.)|R', 'ส่วนต่างจากสูตร (กก.)|R', 'มูลค่าที่เสียไป|R', 'Yield จริง (ประมาณ)', 'สถานะ'])
+      },
+      recentMoves: sorted.slice(0, 8).map(movRow),
+      rf: rfB, xf: xfB, sf: sfB,
+      onPickItem: e => {
+        const code = e.target.value, it = S.items.find(i => i.code === code);
+        this.setState(s => ({ rf: Object.assign({}, s.rf, { code, name: it ? it.name : s.rf.name, weightPerUnit: it ? String(it.weightPerUnit) : s.rf.weightPerUnit, shelfLife: it ? String(it.shelfLife) : s.rf.shelfLife, supplier: it && !s.rf.supplier ? it.mainSupplier : s.rf.supplier }) }));
+      },
+      onSubmitReceive: () => this.submitReceive(), onSubmitIssue: () => this.submitIssue(), onAddSupplier: () => this.addSupplier(),
+      nextLotId: 'LOT-' + S.rf.recvDate.slice(2).replace(/-/g, '') + '-' + String(S.seq + 1).slice(-2),
+      itemOptions: S.items.map(i => ({ code: i.code, optLabel: i.code + ' · ' + i.name })),
+      suppliers: S.suppliers.map(s => ({ name: s.name })),
+      purposes: ['เบิกผลิต', 'เบิกโอนสาขา', 'เบิกทดลองสูตร', 'ตัดทิ้ง/ของเสีย'].map(v => ({ value: v })),
+      receivePreview: rp, receiptCount: S.lots.length,
+      receiptRows: S.lots.slice().reverse().filter(l => this.hit(l.name + ' ' + l.code + ' ' + l.id + ' ' + l.supplier + ' ' + l.buyer + ' ' + l.ref)).map(l => Object.assign({}, C, {
+        lotId: l.id, when: this.short(l.recvDate) + ' ' + l.recvTime, name: l.name, code: l.code, supplier: l.supplier, buyer: l.buyer,
+        mfgDate: this.short(l.mfgDate), shelfLife: this.n(l.shelfLife), expDate: this.short(this.expiryOf(l)),
+        qtyIn: this.n(l.qtyIn) + ' ' + l.unit, weightIn: this.n(l.qtyIn * l.weightPerUnit, 1), weightPerUnit: this.n(l.weightPerUnit, 1),
+        pricePerUnit: this.baht(l.pricePerUnit), totalCost: this.baht(l.qtyIn * l.pricePerUnit)
+      })),
+      stockStats: [
+        { label: 'ต้นทุนทั้งหมดใน inventory', value: this.baht(totalCost), fg: '#A93C18' },
+        { label: 'น้ำหนักคงเหลือรวม (กก.)', value: this.n(totalWeight, 1), fg: '#2A2118' },
+        { label: 'จำนวนหน่วยคงเหลือรวม', value: this.n(live.reduce((a, l) => a + l.qtyLeft, 0)), fg: '#2A2118' },
+        { label: 'ล็อตที่ต้องใช้ก่อน (≤ ' + w + ' วัน)', value: this.n(nearExp.length + expired.length), fg: nearExp.length + expired.length ? '#8A5A0C' : '#2A2118' }
+      ],
+      stockRows: byItem.filter(r => r.qtyLeft > 0).filter(r => this.hit(r.it.name + ' ' + r.it.code + ' ' + r.it.category)).map(r => {
+        const st = this.status(r.soonest === null ? 99 : r.soonest);
+        const pct = Math.min(100, Math.round(r.wLeft / r.it.minStock * 100));
+        return Object.assign({}, C, {
+          name: r.it.name, code: r.it.code, category: r.it.category,
+          qtyLeft: this.n(r.qtyLeft) + ' ' + r.it.unit, weightLeft: this.n(r.wLeft, 1),
+          barW: pct + '%', barColor: pct < 100 ? '#C4761C' : '#6F8B4F', minStock: this.n(r.it.minStock) + ' กก.',
+          oldestAge: r.oldest === null ? '—' : this.n(r.oldest), ageLeft: r.soonest === null ? '—' : this.n(r.soonest),
+          cost: this.baht(r.cost), badge: pct < 100 ? 'ต้องสั่งซื้อ' : st.label, badgeBg: pct < 100 ? '#F1EDE2' : st.bg, badgeFg: pct < 100 ? '#5C5344' : st.fg
+        });
+      }),
+      lotRows: live.filter(l => this.hit(l.name + ' ' + l.code + ' ' + l.id + ' ' + l.supplier)).map(l => {
+        const days = this.ageLeftOf(l), st = this.status(days);
+        return Object.assign({}, C, {
+          lotId: l.id, branchName: this.branchName(l.branch), name: l.name, code: l.code, supplier: l.supplier, recvDate: this.short(l.recvDate), expDate: this.short(this.expiryOf(l)),
+          ageLeft: this.n(days), qtyLeft: this.n(l.qtyLeft) + ' ' + l.unit, weightLeft: this.n(l.qtyLeft * l.weightPerUnit, 1),
+          pricePerUnit: this.baht(l.pricePerUnit, 2) + ' / ' + l.unit, pricePerKg: this.baht(l.pricePerUnit / l.weightPerUnit, 2) + ' / กก.',
+          costLeft: this.baht(this.costOf(l)), badge: st.label, badgeBg: st.bg, badgeFg: st.fg
+        });
+      }),
+      stockOptions: byItem.filter(r => r.qtyLeft > 0).map(r => ({ code: r.it.code, optLabel: r.it.code + ' · ' + r.it.name + ' (คงเหลือ ' + r.qtyLeft + ' ' + r.it.unit + ')' })),
+      allocation, issuePreview,
+      issueCount: S.moves.filter(m => m.type !== 'รับเข้า').length,
+      issueRows: sorted.filter(m => m.type !== 'รับเข้า').filter(m => this.hit(m.name + ' ' + m.code + ' ' + m.id + ' ' + m.user + ' ' + m.lotId)).map(m => Object.assign({}, C, {
+        doc: m.id, when: this.short(m.date) + ' ' + m.time, name: m.name, code: m.code, lotId: m.lotId,
+        qty: this.n(m.qty), weight: this.n(m.weight, 1), age: m.age === undefined ? '—' : this.n(m.age),
+        issuer: m.user, cost: this.baht(m.cost), purpose: m.purpose || '-',
+        tagBg: m.type === 'ตัดทิ้ง' ? '#F7E3DE' : '#F1EDE2', tagFg: m.type === 'ตัดทิ้ง' ? '#8E3320' : '#5C5344'
+      })),
+      rcf: Object.assign({}, rcfB, { capPerDay: this.bind('rcf', 'capPerDay') }),
+      onAddLine: () => this.addRecipeLine(), onAddRecipe: () => this.addRecipe(),
+      recipeCount: (S.recipes || []).length,
+      recipeLines: S.rcf.lines.map((l, i) => ({
+        code: { value: l.code, on: e => this.setRecipeLine(i, 'code', e.target.value) },
+        qty: { value: l.qty, on: e => this.setRecipeLine(i, 'qty', e.target.value) },
+        cost: l.code && Number(l.qty) > 0 ? this.baht(Number(l.qty) * this.pricePerKg(l.code), 2) : '—'
+      })),
+      recipePreview: (() => {
+        const p = this.recipePlan(S.rcf), net = Number(S.rcf.net) || 0;
+        return { kg: p.kg ? this.n(p.kg, 3) + ' กก.' : '—', cost: p.cost ? this.baht(p.cost, 2) : '—', yield: p.kg && net ? this.n(net / p.kg * 100, 1) + '%' : '—' };
+      })(),
+      recipeStats: [
+        { label: 'เมนูที่มีสูตร', value: this.n((S.recipes || []).length), hint: 'ใช้คำนวณวัตถุดิบมาตรฐานอัตโนมัติ', dot: '#6F8B4F', fg: '#2A2118' },
+        { label: 'ผลิตแล้วยังไม่มีสูตร', value: this.n(variance.filter(v => !v.pl).length), hint: variance.filter(v => !v.pl).length ? variance.filter(v => !v.pl).map(v => v.product).slice(0, 2).join(', ') : 'ครบทุกเมนูที่ผลิต', dot: '#C4761C', fg: '#2A2118' },
+        { label: 'ส่วนเกินสูตรรวม (กก.)', value: this.n(wasteKgTotal, 1), hint: 'วัตถุดิบที่ใช้เกินกว่าสูตรกำหนด', dot: '#A93C18', fg: '#8E3320' },
+        { label: 'มูลค่าที่เสียไป', value: this.baht(wasteTotal), hint: 'คิดจากราคาวัตถุดิบล่าสุดต่อ กก.', dot: '#A93C18', fg: '#A93C18' },
+        (() => {
+          const caps = (S.recipes || []).map(r => ({ r, c: this.capacityOf(r) })).sort((a, b) => b.c.units - a.c.units)[0];
+          return { label: 'ผลิตได้สูงสุดจากสต๊อกวันนี้', value: caps ? this.n(caps.c.units) + ' ' + caps.r.unit : '—', hint: caps ? caps.r.product + ' · ติดที่ ' + (caps.c.bound === 'กำลังผลิต' ? 'กำลังผลิตต่อวัน' : caps.c.limit) : '—', dot: '#948676', fg: '#2A2118' };
+        })()
+      ],
+      recipeRows: (S.recipes || []).filter(r => this.hit(r.product + ' ' + r.id)).map(r => {
+        const p = this.recipePlan(r);
+        return Object.assign({}, C, {
+          id: r.id, product: r.product, unit: r.unit,
+          lines: p.lines.map(l => { const it = S.items.find(i => i.code === l.code); return (it ? it.name : l.code) + ' ' + this.n(Number(l.qty), 3) + ' กก.'; }).join(' + '),
+          planKg: this.n(p.kg, 3), net: this.n(r.net, 3), stdYield: p.kg ? this.n(r.net / p.kg * 100, 1) + '%' : '—', stdCost: this.baht(p.cost, 2),
+          stockUnits: this.n(this.capacityOf(r).stockUnits) + ' ' + r.unit,
+          capPerDay: r.capPerDay ? this.n(r.capPerDay) + ' ' + r.unit : '—',
+          maxUnits: this.n(this.capacityOf(r).units) + ' ' + r.unit,
+          limitBy: this.capacityOf(r).bound === 'กำลังผลิต' ? 'กำลังผลิตต่อวัน' : this.capacityOf(r).limit,
+          maxFg: this.capacityOf(r).units ? '#2A2118' : '#8E3320'
+        });
+      }),
+      varianceRows: variance.filter(v => this.hit(v.product)).map(v => {
+        const over = v.gapKg > 0.05, under = v.gapKg < -0.05;
+        const st = !v.pl ? { bg: '#F1EDE2', fg: '#5C5344', color: '#948676', label: 'ยังไม่มีสูตร' }
+          : v.achieved > 100 ? { bg: '#F1EDE2', fg: '#5C5344', color: '#948676', label: 'ประมาณการ · ควรผูกเมนูตอนเบิก' }
+          : under ? { bg: '#EDF1E3', fg: '#47632F', color: '#6F8B4F', label: 'ใช้น้อยกว่าสูตร' }
+          : v.achieved >= v.stdYield ? { bg: '#EDF1E3', fg: '#47632F', color: '#6F8B4F', label: 'ตามสูตร' }
+          : v.achieved >= v.stdYield - 6 ? { bg: '#FAEEDA', fg: '#8A5A0C', color: '#C4761C', label: 'ต่ำกว่าสูตร' }
+          : { bg: '#F7E3DE', fg: '#8E3320', color: '#A93C18', label: 'สูญเสียสูง' };
+        return Object.assign({}, C, {
+          product: v.product, batches: v.os.length + ' รอบผลิต · เป้าตามสูตร ' + (v.stdYield ? this.n(v.stdYield, 1) + '%' : '—'),
+          qty: this.n(v.qty) + ' ' + v.unit,
+          planKg: v.planKg ? this.n(v.planKg, 1) : '—', expectKg: v.expectKg ? this.n(v.expectKg, 1) : '—',
+          actualKg: v.actualKg ? this.n(v.actualKg, 1) : '—',
+          gapKg: v.pl ? (over ? '+' : under ? '−' : '') + this.n(Math.abs(v.gapKg), 1) : '—',
+          gapCost: !v.pl ? '—' : over ? '+' + this.baht(v.gapCost) : under ? 'ประหยัด ' + this.baht(Math.abs(v.gapCost)) : '—',
+          achieved: v.achieved ? this.n(v.achieved, 1) + '%' : '—', barW: Math.min(100, Math.round(v.achieved)) + '%',
+          barColor: st.color, badge: st.label, badgeBg: st.bg, badgeFg: st.fg
+        });
+      }),
+      of: ofB, onSubmitOutput: () => this.submitOutput(),
+      shifts: ['กะเช้า 05:00–13:00', 'กะบ่าย 13:00–21:00', 'กะดึก 21:00–05:00'].map(v => ({ value: v })),
+      outputCount: S.outputs.length,
+      outputPreview: (() => {
+        const f = S.of, wt = Number(f.weight) || 0, qty = Number(f.qty) || 0, iss = this.issuedOn(f.date);
+        const pct = iss.weight ? wt / iss.weight * 100 : 0;
+        return { issued: iss.weight ? this.kg(iss.weight) + ' · ' + this.baht(iss.cost) : '— ยังไม่มีการเบิก', yield: pct ? this.n(pct, 1) + '%' : '—', yieldFg: this.yieldStatus(pct).color, perUnit: qty && iss.cost ? this.baht(iss.cost / qty, 2) : '—' };
+      })(),
+      outputStats: [
+        { label: 'ผลิตได้วันนี้ (คละหน่วย)', value: todayUnits || '—', hint: 'น้ำหนักผลผลิตรวม ' + this.kg(today.wt), dot: '#6F8B4F', fg: '#2A2118' },
+        { label: 'วัตถุดิบเบิกออกวันนี้', value: this.n(today.iss.weight, 1), hint: 'กิโลกรัม · ' + this.baht(today.iss.cost), dot: '#C4761C', fg: '#2A2118' },
+        { label: 'Yield วันนี้', value: today.pct ? this.n(today.pct, 1) + '%' : '—', hint: 'เป้าหมาย ' + target + '%', dot: this.yieldStatus(today.pct).color, fg: this.yieldStatus(today.pct).fg },
+        { label: 'Yield เฉลี่ยช่วงที่บันทึก', value: avgYield ? this.n(avgYield, 1) + '%' : '—', hint: 'ผลผลิต ' + this.kg(totWt) + ' จากวัตถุดิบ ' + this.kg(totIssW), dot: this.yieldStatus(avgYield).color, fg: '#2A2118' },
+        { label: 'ต้นทุนวัตถุดิบ/หน่วยผลผลิต', value: totQty ? this.baht(totIssC / totQty, 2) : '—', hint: 'เฉลี่ยจาก ' + this.n(totQty) + ' หน่วยที่ผลิตได้', dot: '#A93C18', fg: '#A93C18' }
+      ],
+      dailyRows: daily.map(r => {
+        const st = this.yieldStatus(r.pct);
+        return Object.assign({}, C, {
+          date: this.short(r.d), products: r.os.length ? r.os.map(o => o.product).join(' · ') : '— ไม่มีบันทึกผลผลิต',
+          qty: r.qty ? (() => { const bu = {}; r.os.forEach(o => { bu[o.unit] = (bu[o.unit] || 0) + o.qty; }); return Object.keys(bu).map(u => this.n(bu[u]) + ' ' + u).join(' · '); })() : '—',
+          outWeight: r.wt ? this.n(r.wt, 1) : '—',
+          issuedWeight: this.n(r.iss.weight, 1), planKg: r.planKg ? this.n(r.planKg, 1) : '—', issuedCost: this.baht(r.iss.cost),
+          yield: r.pct ? this.n(r.pct, 1) + '%' : '—', barW: Math.min(100, Math.round(r.pct)) + '%', barColor: st.color,
+          loss: r.wt ? (r.iss.weight - r.wt >= 0 ? '' : '−') + this.n(Math.abs(r.iss.weight - r.wt), 1) : '—',
+          costPerUnit: r.qty ? this.baht(r.iss.cost / r.qty, 2) : '—',
+          badge: st.label, badgeBg: st.bg, badgeFg: st.fg
+        });
+      }),
+      outputRows: S.outputs.slice().reverse().filter(o => this.hit(o.product + ' ' + o.staff + ' ' + o.shift + ' ' + o.date)).map(o => Object.assign({}, C, {
+        date: this.short(o.date), shift: o.shift, product: o.product, qty: this.n(o.qty) + ' ' + o.unit,
+        weight: this.n(o.weight, 1), reject: o.reject ? this.n(o.reject, 1) : '—',
+        perUnitWeight: this.n(o.weight / o.qty * 1000, 0) + ' ก.', staff: o.staff
+      })),
+      supplierCount: S.suppliers.length,
+      supplierRows: S.suppliers.filter(s => this.hit(s.name + ' ' + s.id + ' ' + s.category + ' ' + s.contact)).map(s => {
+        const purchase = S.moves.filter(m => m.type === 'รับเข้า' && (m.note || '').indexOf(s.name) === 0).reduce((a, m) => a + m.cost, 0);
+        return Object.assign({}, C, {
+          id: s.id, name: s.name, category: s.category, contact: s.contact, phone: s.phone, terms: s.terms, cert: s.cert,
+          purchase: purchase ? this.baht(purchase) : '—', score: s.score, scoreW: s.score + '%', scoreColor: s.score >= 90 ? '#6F8B4F' : s.score >= 85 ? '#C4761C' : '#A93C18'
+        });
+      }),
+      itemRows: S.items.filter(i => this.hit(i.name + ' ' + i.code + ' ' + i.category)).map(i => Object.assign({}, C, {
+        code: i.code, name: i.name, category: i.category, unit: i.unit, weightPerUnit: this.n(i.weightPerUnit, 1),
+        shelfLife: this.n(i.shelfLife), minStock: this.n(i.minStock), storage: i.storage, mainSupplier: i.mainSupplier
+      })),
+      movFilters, movementCount: filtered.length, movementRows: filtered.map(movRow),
+      movSummary: {
+        in: this.kg(filtered.filter(m => m.type === 'รับเข้า').reduce((a, m) => a + m.weight, 0)),
+        out: this.kg(filtered.filter(m => m.type === 'เบิกออก').reduce((a, m) => a + m.weight, 0)),
+        waste: this.kg(filtered.filter(m => m.type === 'ตัดทิ้ง').reduce((a, m) => a + m.weight, 0)),
+        net: this.baht(filtered.reduce((a, m) => a + (m.type === 'รับเข้า' ? m.cost : -m.cost), 0))
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
