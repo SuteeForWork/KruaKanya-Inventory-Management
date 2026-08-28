@@ -69,11 +69,30 @@ any of the README/license/gitignore boxes, this repo already has those.)
 4. Optional: **Custom domains** tab to point your own domain at it, still
    free.
 
-## Once you have the Supabase URL + anon key
+## Status: the app is wired to Supabase
 
-Send them to me and I'll wire `src/core/store.js` to read and write through
-Supabase instead of the in-memory seed — that's a real rewrite (every action
-becomes an async network call, plus migrating `src/core/access.js`'s
-plaintext demo accounts to Supabase Auth), so it's worth doing as its own
-pass with its own testing rather than guessing at it now without a live
-project to test against.
+`src/core/db.js` + `src/core/store.js` now read and write through Supabase —
+set `config.supabaseUrl`/`supabaseAnonKey` in `src/config.js` (already done)
+and the app loads real data on boot instead of the in-memory seed. Every
+"add" action (receive, issue, output, recipe, supplier, branch, item,
+permissions) writes to the database before updating the screen.
+
+**Login stays local for now.** `src/core/access.js`'s demo account list
+(`admin` / `chef` / ... , password `1234`) is unchanged — the app doesn't yet
+create a real Supabase Auth session, so every request reaches the database as
+the `anon` role. `db/schema.sql`'s Row Level Security policies are scoped to
+match that (open read/write) rather than pretending to be secure when nothing
+actually authenticates yet. That's fine on a private network; migrating to
+real Supabase Auth (email/password accounts, RLS keyed to `auth.uid()`) is
+the follow-up needed before this is reachable from the open internet.
+
+**The item master needs seeding once.** Nothing pre-populates `items` —
+there was never a way to add one before this pass (the original app only
+ever read them from the hardcoded demo seed). Use the new "เพิ่มวัตถุดิบใหม่"
+form under **ซัพพลายเออร์ & วัตถุดิบ** to register real raw materials before
+trying to receive stock against them; the "รับเข้า" item dropdown is empty
+until at least one exists.
+
+If you change the schema (re-running `db/schema.sql` after an edit), remember
+it's DROP-then-CREATE — anything already stored in those tables is deleted
+first.
