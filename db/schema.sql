@@ -8,7 +8,23 @@
 -- This defines structure only — it does not insert the demo seed rows.
 -- Migrating the seed data and wiring src/core/store.js to read/write through
 -- this schema is a separate follow-up step (see DEPLOY.md).
+--
+-- Safe to re-run: it drops its own tables first, so running it twice (or
+-- recovering from a run that failed partway through) just recreates
+-- everything from scratch. Only run this against a project that doesn't yet
+-- hold data you care about — CASCADE below deletes rows, not just structure.
 -- ==========================================================================
+
+drop table if exists profiles cascade;
+drop table if exists role_permissions cascade;
+drop table if exists outputs cascade;
+drop table if exists moves cascade;
+drop table if exists lots cascade;
+drop table if exists recipe_lines cascade;
+drop table if exists recipes cascade;
+drop table if exists items cascade;
+drop table if exists suppliers cascade;
+drop table if exists branches cascade;
 
 -- ---------------------------------------------------------------------------
 -- Branches
