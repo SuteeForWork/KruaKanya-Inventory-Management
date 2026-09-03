@@ -15,6 +15,7 @@
 -- hold data you care about — CASCADE below deletes rows, not just structure.
 -- ==========================================================================
 
+drop table if exists role_labels cascade;
 drop table if exists admin_profile cascade;
 drop table if exists accounts cascade;
 drop table if exists profiles cascade;
@@ -388,3 +389,18 @@ begin
 end;
 $$;
 grant execute on function public.update_account_name(bigint, text) to anon;
+
+-- ==========================================================================
+-- Editable role names + example-user labels
+--
+-- See db/migrations/004_role_labels.sql for the full reasoning.
+-- ==========================================================================
+
+create table role_labels (
+  role_key text primary key,
+  label    text not null,
+  person   text not null
+);
+
+alter table role_labels enable row level security;
+create policy "open access" on role_labels for all using (true) with check (true);

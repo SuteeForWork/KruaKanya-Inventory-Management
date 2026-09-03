@@ -177,6 +177,44 @@ function headings() {
   );
 }
 
+/** The role/example-user cell: plain text + edit trigger, or an inline form. */
+function roleCell(state, role) {
+  if (state.editingRoleKey !== role.key) {
+    return el('td', { class: 'role-cell' },
+      el('div', { class: 'cell__title', text: role.label }),
+      el('div', { class: 'cell__sub', text: role.person }),
+      when(store.isAdmin(), () => el('button', {
+        class: 'btn btn--small', style: { marginTop: '6px' }, text: 'แก้ไข',
+        onClick: () => store.startEditRoleLabel(role.key)
+      }))
+    );
+  }
+
+  return el('td', { class: 'role-cell' },
+    el('div', { class: 'stack', style: { gap: '6px' } },
+      el('input', {
+        value: state.editRoleLabel, placeholder: 'ชื่อบทบาท',
+        onInput: e => store.setEditRoleLabel(e.target.value)
+      }),
+      el('input', {
+        value: state.editRolePerson, placeholder: 'ชื่อผู้ใช้ตัวอย่าง',
+        onInput: e => store.setEditRolePerson(e.target.value)
+      }),
+      el('div', { class: 'row', style: { gap: '6px' } },
+        el('button', {
+          class: 'btn btn--small', text: 'บันทึก',
+          onClick: () => {
+            if (confirmAction(`ยืนยันแก้ไขบทบาทเป็น "${state.editRoleLabel.trim()}" · "${state.editRolePerson.trim()}"?`)) {
+              store.saveRoleLabel();
+            }
+          }
+        }),
+        el('button', { class: 'btn btn--small', text: 'ยกเลิก', onClick: () => store.cancelEditRoleLabel() })
+      )
+    )
+  );
+}
+
 /** Admin rights are locked so an admin cannot lock themselves out. */
 function permButton(role, section) {
   const value = store.perm(section.key, role.key);
@@ -201,10 +239,7 @@ export function adminView() {
       headings(),
       el('tbody', null,
         ROLES.map(role => el('tr', null,
-          el('td', { class: 'role-cell' },
-            el('div', { class: 'cell__title', text: role.label }),
-            el('div', { class: 'cell__sub', text: role.person })
-          ),
+          roleCell(state, role),
           SECTIONS.map(section => permButton(role, section))
         ))
       )

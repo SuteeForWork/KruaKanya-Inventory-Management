@@ -20,7 +20,7 @@ import {
 import { recipePlan } from './production.js';
 import {
   PERM_ORDER, SECTIONS, STAFF_ROLES,
-  authenticate, defaultPerms, firstViewFor, roleByKey
+  applyRoleLabelOverrides, authenticate, defaultPerms, firstViewFor, roleByKey
 } from './access.js';
 import * as db from './db.js';
 
@@ -109,6 +109,10 @@ class Store {
       editAccountName: '',
       adminNameForm: '',
       editingAdminName: false,
+      // Which role row of the permission matrix is being edited, plus drafts.
+      editingRoleKey: null,
+      editRoleLabel: '',
+      editRolePerson: '',
       receiveForm: blankReceive(),
       issueForm: blankIssue(),
       outputForm: blankOutput(),
@@ -138,7 +142,17 @@ class Store {
       });
     } catch (e) {
       this.set({ booting: false, bootError: e.message });
+      return;
     }
+
+    // Independent of the load above — a missing migration 004 shouldn't take
+    // down the whole app, it just means the defaults from access.js stand.
+    // applyRoleLabelOverrides mutates ROLES in place rather than going
+    // through state, so nudge a re-render afterwards to pick it up.
+    try {
+      applyRoleLabelOverrides(await db.getRoleLabels());
+      this.set({});
+    } catch { /* migration 004 not run yet — keep the built-in labels */ }
   }
 
   /* ---- plumbing --------------------------------------------------------- */
@@ -396,6 +410,34 @@ class Store {
     if (!ok) return;
     this.set(s => ({ auth: { ...s.auth, fullName: name }, editingAdminName: false, adminNameForm: '' }));
     this.say('แก้ไขชื่อเรียบร้อย');
+  }
+
+  /** Editing one role's label + example-user name in the permission matrix. */
+  startEditRoleLabel(key) {
+    if (!this.isAdmin()) return;
+    const role = roleByKey(key);
+    this.set({ editingRoleKey: key, editRoleLabel: role.label, editRolePerson: role.person });
+  }
+
+  cancelEditRoleLabel() {
+    this.set({ editingRoleKey: null, editRoleLabel: '', editRolePerson: '' });
+  }
+
+  setEditRoleLabel(value)  { this.set({ editRoleLabel: value }); }
+  setEditRolePerson(value) { this.set({ editRolePerson: value }); }
+
+  async saveRoleLabel() {
+    if (!this.isAdmin()) return;
+    const key = this.state.editingRoleKey;
+    const label = this.state.editRoleLabel.trim();
+    const person = this.state.editRolePerson.trim();
+    if (!label || !person) { this.say('กรอกชื่อบทบาทและชื่อตัวอย่างให้ครบ', true); return; }
+
+    const ok = await this.persist('แก้ไขบทบาท', () => db.updateRoleLabel(key, label, person));
+    if (!ok) return;
+    applyRoleLabelOverrides({ [key]: { label, person } });
+    this.set({ editingRoleKey: null, editRoleLabel: '', editRolePerson: '' });
+    this.say('แก้ไขบทบาทเรียบร้อย');
   }
 
   /** Admins can preview the app as another role without logging out. */
@@ -939,8 +981,12 @@ class Store {
   /* ---- view state ------------------------------------------------------- */
 
   setView(view) {
+    if (view === 'admin' && !this.isAdmin()) {
+      this.say('เฉพาะผู้ดูแลระบบเท่านั้นที่เข้าหน้านี้ได้', true);
+      return;
+    }
     this.set({ view });
-    if (view === 'admin' && this.isAdmin() && this.persisted && !this.state.accountsLoaded) {
+    if (view === 'admin' && this.persisted && !this.state.accountsLoaded) {
       this.loadAccounts();
     }
   }

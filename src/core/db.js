@@ -342,3 +342,22 @@ export async function getAdminName() {
 export async function updateAdminName(fullName) {
   must(await supabase.from('admin_profile').update({ full_name: fullName }).eq('id', 1), 'แก้ไขชื่อผู้ดูแลระบบ');
 }
+
+/* -------------------------------------------------------------------------- */
+/* Role labels — overrides for the permission matrix's role/person column.    */
+/* -------------------------------------------------------------------------- */
+
+/** `{ [roleKey]: { label, person } }` for every role with a stored override. */
+export async function getRoleLabels() {
+  const { data, error } = await supabase.from('role_labels').select('role_key, label, person');
+  if (error) throw new Error(`โหลดชื่อบทบาท: ${error.message}`);
+  const map = {};
+  (data || []).forEach(r => { map[r.role_key] = { label: r.label, person: r.person }; });
+  return map;
+}
+
+export async function updateRoleLabel(roleKey, label, person) {
+  must(await supabase.from('role_labels').upsert(
+    { role_key: roleKey, label, person }, { onConflict: 'role_key' }
+  ), 'แก้ไขบทบาท');
+}

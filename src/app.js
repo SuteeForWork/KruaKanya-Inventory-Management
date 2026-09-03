@@ -224,7 +224,11 @@ function topbar(state) {
 /* -------------------------------------------------------------------------- */
 
 function appView(state) {
-  const view = VIEWS[state.view] || VIEWS.dash;
+  // Belt-and-suspenders: the nav item is already hidden from non-admins, but
+  // render-time state can be reached other ways (e.g. state.view set
+  // directly), and this page shows the employee roster's PII.
+  const effectiveView = state.view === 'admin' && !store.isAdmin() ? 'dash' : state.view;
+  const view = VIEWS[effectiveView] || VIEWS.dash;
 
   return el('div', { class: 'shell' },
     sidebar(state),

@@ -9,6 +9,22 @@ export const ROLES = [
   { key: 'exec',       label: 'ผู้บริหาร',        person: 'ปิยะ ม.',     short: 'ปย' }
 ];
 
+/**
+ * Applies admin-chosen overrides to ROLES's label/person in place — every
+ * existing `roleByKey(key).label` call site picks the change up automatically,
+ * no threading it through views or state needed. Role keys themselves are
+ * never overridden; they're wired into permissions, registration, and
+ * everywhere else.
+ */
+export function applyRoleLabelOverrides(overrides) {
+  ROLES.forEach(r => {
+    const o = overrides[r.key];
+    if (!o) return;
+    if (o.label) r.label = o.label;
+    if (o.person) r.person = o.person;
+  });
+}
+
 /** Sections that appear as columns in the permission matrix. */
 export const SECTIONS = [
   { key: 'dash',    label: 'ภาพรวม' },
