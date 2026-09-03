@@ -5,7 +5,7 @@
  * yieldTarget, density) and keep the same defaults here.
  */
 export const config = {
-  companyName: 'ครัวกลาง สยามคิทเช่น',
+  companyName: 'ครัวกัญญา',
 
   /** A lot is flagged "ใกล้หมดอายุ" when this many days or fewer remain. */
   fefoWarnDays: 3,
