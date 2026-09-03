@@ -81,6 +81,7 @@ function nameCell(state, a) {
       el('input', {
         value: state.editAccountName,
         style: { minWidth: '160px' },
+        'data-bind': 'editAccountName',
         onInput: e => store.setEditAccountName(e.target.value),
         onKeydown: e => { if (e.key === 'Enter') store.saveAccountName(); }
       }),
@@ -127,6 +128,7 @@ function adminProfileCard(state) {
           el('input', {
             value: state.adminNameForm,
             style: { minWidth: '220px' },
+            'data-bind': 'adminNameForm',
             onInput: e => store.setAdminNameDraft(e.target.value),
             onKeydown: e => { if (e.key === 'Enter') store.saveAdminName(); }
           }),
@@ -194,10 +196,12 @@ function roleCell(state, role) {
     el('div', { class: 'stack', style: { gap: '6px' } },
       el('input', {
         value: state.editRoleLabel, placeholder: 'ชื่อบทบาท',
+        'data-bind': 'editRoleLabel',
         onInput: e => store.setEditRoleLabel(e.target.value)
       }),
       el('input', {
         value: state.editRolePerson, placeholder: 'ชื่อผู้ใช้ตัวอย่าง',
+        'data-bind': 'editRolePerson',
         onInput: e => store.setEditRolePerson(e.target.value)
       }),
       el('div', { class: 'row', style: { gap: '6px' } },
