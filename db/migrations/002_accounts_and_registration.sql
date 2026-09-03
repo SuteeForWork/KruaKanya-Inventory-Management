@@ -33,10 +33,20 @@
 -- substitute for real per-user authentication.
 --
 -- Safe to run against a live database: creates one new table and four new
--- functions, touches nothing existing.
+-- functions, touches nothing existing. Also safe to re-run (e.g. after
+-- fixing a mistake in this file) — it drops its own table and functions
+-- first, so nothing is left half-created from a failed attempt. Only re-run
+-- against a project where you don't yet have real registrations you'd lose.
 -- ==========================================================================
 
 create extension if not exists pgcrypto;
+
+drop table if exists accounts cascade;
+drop function if exists public.register_account(text, text, text, text, text) cascade;
+drop function if exists public.check_login(text, text) cascade;
+drop function if exists public.list_accounts() cascade;
+drop function if exists public.approve_account(bigint, text) cascade;
+drop function if exists public.reject_account(bigint) cascade;
 
 create table accounts (
   id            bigint generated always as identity primary key,
@@ -47,7 +57,7 @@ create table accounts (
   role          text not null check (role in ('purchasing', 'store', 'kitchen', 'qa', 'exec')),
   branch_id     text references branches(id),   -- null = ทุกสาขา, set on approval
   status        text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
-  password_hash text not null default crypt('1234', gen_salt('bf')),
+  password_hash text not null default extensions.crypt('1234', extensions.gen_salt('bf')),
   created_at    timestamptz not null default now(),
   approved_at   timestamptz
 );
@@ -97,7 +107,7 @@ as $$
   from accounts
   where lower(email) = lower(p_email)
     and status = 'approved'
-    and password_hash = crypt(p_password, password_hash)
+    and password_hash = extensions.crypt(p_password, password_hash)
   limit 1;
 $$;
 grant execute on function public.check_login(text, text) to anon;
