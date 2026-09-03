@@ -104,6 +104,11 @@ class Store {
       // shared computer doesn't keep PII sitting in memory between sessions.
       accounts: [],
       accountsLoaded: false,
+      // Which roster row's name is being edited inline, plus its draft value.
+      editingAccountId: null,
+      editAccountName: '',
+      adminNameForm: '',
+      editingAdminName: false,
       receiveForm: blankReceive(),
       issueForm: blankIssue(),
       outputForm: blankOutput(),
@@ -233,7 +238,16 @@ class Store {
 
     const localAccount = authenticate(user, pass);
     if (localAccount) {
-      this.completeLogin(localAccount);
+      // The credential check itself stays fully local (works offline) — only
+      // the display name is worth fetching fresh, since that's the one thing
+      // about this account that can actually change.
+      let fullName = localAccount.fullName;
+      if (this.persisted) {
+        try {
+          fullName = (await db.getAdminName()) || fullName;
+        } catch { /* offline, or migration 003 not run yet — keep the default */ }
+      }
+      this.completeLogin({ ...localAccount, fullName });
       return;
     }
 
@@ -328,6 +342,60 @@ class Store {
     } catch (e) {
       this.say(`ปฏิเสธไม่สำเร็จ — ${e.message}`, true);
     }
+  }
+
+  /* ---- editing names ------------------------------------------------------ */
+
+  /** Admin renaming a registered employee — name only, see migration 003. */
+  startEditAccountName(id, currentName) {
+    if (!this.isAdmin()) return;
+    this.set({ editingAccountId: id, editAccountName: currentName });
+  }
+
+  cancelEditAccountName() {
+    this.set({ editingAccountId: null, editAccountName: '' });
+  }
+
+  setEditAccountName(value) {
+    this.set({ editAccountName: value });
+  }
+
+  async saveAccountName() {
+    if (!this.isAdmin()) return;
+    const id = this.state.editingAccountId;
+    const name = this.state.editAccountName.trim();
+    if (!name) { this.say('กรอกชื่อก่อนบันทึก', true); return; }
+
+    const ok = await this.persist('แก้ไขชื่อผู้ใช้งาน', () => db.updateAccountName(id, name));
+    if (!ok) return;
+    this.set(s => ({
+      accounts: s.accounts.map(a => (a.id === id ? { ...a, fullName: name } : a)),
+      editingAccountId: null, editAccountName: ''
+    }));
+    this.say('แก้ไขชื่อเรียบร้อย');
+  }
+
+  /** Admin renaming themselves — persisted separately from the account list. */
+  startEditAdminName() {
+    this.set({ editingAdminName: true, adminNameForm: (this.state.auth && this.state.auth.fullName) || '' });
+  }
+
+  setAdminNameDraft(value) {
+    this.set({ adminNameForm: value });
+  }
+
+  cancelEditAdminName() {
+    this.set({ editingAdminName: false, adminNameForm: '' });
+  }
+
+  async saveAdminName() {
+    const name = this.state.adminNameForm.trim();
+    if (!name) { this.say('กรอกชื่อก่อนบันทึก', true); return; }
+
+    const ok = await this.persist('แก้ไขชื่อผู้ดูแลระบบ', () => db.updateAdminName(name));
+    if (!ok) return;
+    this.set(s => ({ auth: { ...s.auth, fullName: name }, editingAdminName: false, adminNameForm: '' }));
+    this.say('แก้ไขชื่อเรียบร้อย');
   }
 
   /** Admins can preview the app as another role without logging out. */

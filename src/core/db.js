@@ -323,3 +323,22 @@ export async function approveAccount(id, branchId) {
 export async function rejectAccount(id) {
   must(await supabase.rpc('reject_account', { p_id: id }), 'ปฏิเสธผู้ใช้งาน');
 }
+
+/** Just the one name field — see db/migrations/003_editable_names.sql. */
+export async function updateAccountName(id, fullName) {
+  must(await supabase.rpc('update_account_name', { p_id: id, p_full_name: fullName }), 'แก้ไขชื่อผู้ใช้งาน');
+}
+
+/* -------------------------------------------------------------------------- */
+/* Admin's own display name — separate one-row table, not the accounts table. */
+/* -------------------------------------------------------------------------- */
+
+export async function getAdminName() {
+  const { data, error } = await supabase.from('admin_profile').select('full_name').eq('id', 1).maybeSingle();
+  if (error) throw new Error(`โหลดชื่อผู้ดูแลระบบ: ${error.message}`);
+  return data ? data.full_name : null;
+}
+
+export async function updateAdminName(fullName) {
+  must(await supabase.from('admin_profile').update({ full_name: fullName }).eq('id', 1), 'แก้ไขชื่อผู้ดูแลระบบ');
+}

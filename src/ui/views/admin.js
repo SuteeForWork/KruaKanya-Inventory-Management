@@ -25,7 +25,7 @@ const PENDING_HEAD = [
   'ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่ที่ขอ', 'วันที่ลงทะเบียน', 'สาขาที่จะสังกัด', ''
 ];
 
-const ROSTER_HEAD = ['ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่', 'สาขา', 'สถานะ'];
+const ROSTER_HEAD = ['ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่', 'สาขา', 'สถานะ', ''];
 
 function roleLabel(key) {
   return (ROLES.find(r => r.key === key) || {}).label || key;
@@ -71,19 +71,77 @@ function pendingRow(state, a) {
   );
 }
 
+/** The name cell: plain text, or an inline input + save/cancel while editing. */
+function nameCell(state, a) {
+  if (state.editingAccountId !== a.id) {
+    return tdTitled(a.fullName, a.department, { mono: false });
+  }
+  return td(
+    el('div', { class: 'row', style: { gap: '6px' } },
+      el('input', {
+        value: state.editAccountName,
+        style: { minWidth: '160px' },
+        onInput: e => store.setEditAccountName(e.target.value),
+        onKeydown: e => { if (e.key === 'Enter') store.saveAccountName(); }
+      }),
+      el('button', {
+        class: 'btn btn--small', text: 'บันทึก',
+        onClick: () => {
+          if (confirmAction(`ยืนยันเปลี่ยนชื่อเป็น "${state.editAccountName.trim()}"?`)) store.saveAccountName();
+        }
+      }),
+      el('button', { class: 'btn btn--small', text: 'ยกเลิก', onClick: () => store.cancelEditAccountName() })
+    )
+  );
+}
+
 function rosterRow(state, a) {
   const badgeByStatus = {
     approved: badge('อนุมัติแล้ว', 'ok'),
     rejected: badge('ปฏิเสธแล้ว', 'danger')
   };
   return tr(
-    tdTitled(a.fullName, a.department, { mono: false }),
+    nameCell(state, a),
     td(a.department),
     tdCode(a.email),
     tdCode(a.phone || '-'),
     td(roleLabel(a.role)),
     td(store.branchLabel(a.branch)),
-    td(badgeByStatus[a.status] || badge(a.status, 'watch'))
+    td(badgeByStatus[a.status] || badge(a.status, 'watch')),
+    td(state.editingAccountId === a.id ? null : el('button', {
+      class: 'btn btn--small', text: 'แก้ไขชื่อ',
+      onClick: () => store.startEditAccountName(a.id, a.fullName)
+    }))
+  );
+}
+
+/** Admin's own display name — separate from the accounts table entirely. */
+function adminProfileCard(state) {
+  const editing = state.editingAdminName;
+  const currentName = (state.auth && state.auth.fullName) || 'ผู้ดูแลระบบ';
+
+  return el('section', { class: 'card card--pad' },
+    el('div', { class: 'card__title-row' }, el('h2', { text: 'ชื่อที่แสดงของคุณ' })),
+    editing
+      ? el('div', { class: 'row', style: { gap: '8px' } },
+          el('input', {
+            value: state.adminNameForm,
+            style: { minWidth: '220px' },
+            onInput: e => store.setAdminNameDraft(e.target.value),
+            onKeydown: e => { if (e.key === 'Enter') store.saveAdminName(); }
+          }),
+          el('button', {
+            class: 'btn btn--primary btn--small', text: 'บันทึก',
+            onClick: () => {
+              if (confirmAction(`ยืนยันเปลี่ยนชื่อของคุณเป็น "${state.adminNameForm.trim()}"?`)) store.saveAdminName();
+            }
+          }),
+          el('button', { class: 'btn btn--small', text: 'ยกเลิก', onClick: () => store.cancelEditAdminName() })
+        )
+      : el('div', { class: 'row', style: { gap: '10px' } },
+          el('span', { text: currentName }),
+          el('button', { class: 'btn btn--small', text: 'แก้ไข', onClick: () => store.startEditAdminName() })
+        )
   );
 }
 
@@ -94,6 +152,7 @@ function accountsSection(state) {
   const roster = state.accounts.filter(a => a.status !== 'pending');
 
   return el('div', { class: 'page__sections', style: { marginBottom: '14px' } },
+    adminProfileCard(state),
     card({ title: 'รออนุมัติ', note: `${pending.length} รายการ` },
       state.accountsLoaded
         ? (pending.length

@@ -15,6 +15,7 @@
 -- hold data you care about — CASCADE below deletes rows, not just structure.
 -- ==========================================================================
 
+drop table if exists admin_profile cascade;
 drop table if exists accounts cascade;
 drop table if exists profiles cascade;
 drop table if exists role_permissions cascade;
@@ -357,3 +358,33 @@ begin
 end;
 $$;
 grant execute on function public.reject_account(bigint) to anon;
+
+-- ==========================================================================
+-- Admin display name + narrow "rename a user" capability
+--
+-- See db/migrations/003_editable_names.sql for the full reasoning.
+-- ==========================================================================
+
+drop function if exists public.update_account_name(bigint, text) cascade;
+
+create table admin_profile (
+  id        bigint primary key,
+  full_name text not null default 'ผู้ดูแลระบบ',
+  check (id = 1)
+);
+insert into admin_profile (id, full_name) values (1, 'ผู้ดูแลระบบ');
+
+alter table admin_profile enable row level security;
+create policy "open access" on admin_profile for all using (true) with check (true);
+
+create or replace function public.update_account_name(p_id bigint, p_full_name text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update accounts set full_name = p_full_name where id = p_id;
+end;
+$$;
+grant execute on function public.update_account_name(bigint, text) to anon;
