@@ -6,16 +6,39 @@ import { config } from '../../config.js';
 import { STAFF_ROLES } from '../../core/access.js';
 
 function credential(label, field, type) {
+  const isPassword = type === 'password';
+
+  const input = el('input', {
+    type,
+    value: store.state.loginForm[field],
+    placeholder: field === 'user' ? 'อีเมล หรือชื่อผู้ใช้' : '••••',
+    'data-bind': `loginForm.${field}`,
+    onInput: e => store.setField('loginForm', field, e.target.value),
+    onKeydown: e => { if (e.key === 'Enter') store.login(); }
+  });
+
+  if (!isPassword) {
+    return el('label', { class: 'field field--login' },
+      el('span', { class: 'field__label field__label--lg', text: label }),
+      input
+    );
+  }
+
+  // Toggles input.type directly — purely cosmetic, no reason to round-trip
+  // through store state and re-render the whole app for this.
+  const toggle = el('button', {
+    type: 'button', class: 'password-toggle', text: 'แสดง',
+    title: 'แสดง/ซ่อนรหัสผ่าน',
+    onClick: () => {
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      toggle.textContent = showing ? 'แสดง' : 'ซ่อน';
+    }
+  });
+
   return el('label', { class: 'field field--login' },
     el('span', { class: 'field__label field__label--lg', text: label }),
-    el('input', {
-      type,
-      value: store.state.loginForm[field],
-      placeholder: field === 'user' ? 'อีเมล หรือชื่อผู้ใช้' : '••••',
-      'data-bind': `loginForm.${field}`,
-      onInput: e => store.setField('loginForm', field, e.target.value),
-      onKeydown: e => { if (e.key === 'Enter') store.login(); }
-    })
+    el('div', { class: 'field__control-wrap' }, input, toggle)
   );
 }
 
