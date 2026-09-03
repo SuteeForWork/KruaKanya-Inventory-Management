@@ -23,21 +23,21 @@ export const SECTIONS = [
 ];
 
 /**
- * Demo credentials.
+ * The one fixed bootstrap account. Checked locally (not against Supabase) so
+ * it always works even if the database is unreachable, and to keep the real
+ * admin password out of any table. Every other account is a real employee
+ * registration, stored in Supabase and checked via db.checkLogin() —
+ * see store.js#login.
  *
- * NOTE: authentication here is client-side and for demonstration only. Wiring
- * this to a real identity provider means replacing `authenticate` below — the
- * rest of the app only reads the resulting `{ user, role, branch }`.
+ * NOTE: authentication here is client-side and not backed by real sessions.
+ * The rest of the app only reads the resulting `{ role, branch, fullName }`.
  */
 export const ACCOUNTS = [
-  { user: 'admin',    pass: '1234', role: 'admin',      branch: 'ALL' },
-  { user: 'purchase', pass: '1234', role: 'purchasing', branch: 'ALL' },
-  { user: 'store',    pass: '1234', role: 'store',      branch: 'BR-01' },
-  { user: 'chef',     pass: '1234', role: 'kitchen',    branch: 'BR-01' },
-  { user: 'siam',     pass: '1234', role: 'store',      branch: 'BR-02' },
-  { user: 'qa',       pass: '1234', role: 'qa',         branch: 'ALL' },
-  { user: 'exec',     pass: '1234', role: 'exec',       branch: 'ALL' }
+  { user: 'adminkruakanya', pass: 'kruakanya150926', role: 'admin', branch: 'ALL', fullName: 'ผู้ดูแลระบบ' }
 ];
+
+/** Roles an employee may request at registration — never 'admin'. */
+export const STAFF_ROLES = ROLES.filter(r => r.key !== 'admin');
 
 export const PERM_ORDER = ['none', 'view', 'edit'];
 

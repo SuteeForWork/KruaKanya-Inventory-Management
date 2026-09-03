@@ -279,3 +279,47 @@ export async function insertOutput(output) {
     staff_name: output.staff
   }), 'บันทึกผลผลิต');
 }
+
+/* -------------------------------------------------------------------------- */
+/* Employee accounts — registration + admin approval                          */
+/*                                                                            */
+/* All four calls go through RPC functions, never the `accounts` table       */
+/* directly — it has no RLS policies of its own (see db/schema.sql). The     */
+/* functions run as the table owner and hand back only what each caller      */
+/* needs; check_login never returns the password hash, list_accounts never   */
+/* returns it either.                                                       */
+/* -------------------------------------------------------------------------- */
+
+export async function registerAccount(account) {
+  must(await supabase.rpc('register_account', {
+    p_full_name: account.fullName, p_department: account.department,
+    p_email: account.email, p_phone: account.phone, p_role: account.role
+  }), 'ลงทะเบียนผู้ใช้งาน');
+}
+
+/** Returns `{ id, fullName, role, branch }` for an approved match, or null. */
+export async function checkLogin(email, password) {
+  const rows = must(await supabase.rpc('check_login', { p_email: email, p_password: password }), 'ตรวจสอบการเข้าสู่ระบบ');
+  if (!rows || !rows.length) return null;
+  const row = rows[0];
+  return { id: row.account_id, fullName: row.full_name, role: row.role, branch: row.branch_id || 'ALL' };
+}
+
+export async function listAccounts() {
+  const rows = must(await supabase.rpc('list_accounts'), 'โหลดรายชื่อผู้ใช้งาน');
+  return rows.map(r => ({
+    id: r.id, fullName: r.full_name, department: r.department, email: r.email, phone: r.phone,
+    role: r.role, branch: r.branch_id || 'ALL', status: r.status,
+    createdAt: r.created_at, approvedAt: r.approved_at
+  }));
+}
+
+export async function approveAccount(id, branchId) {
+  must(await supabase.rpc('approve_account', {
+    p_id: id, p_branch_id: branchId === 'ALL' ? null : branchId
+  }), 'อนุมัติผู้ใช้งาน');
+}
+
+export async function rejectAccount(id) {
+  must(await supabase.rpc('reject_account', { p_id: id }), 'ปฏิเสธผู้ใช้งาน');
+}

@@ -6,3 +6,6 @@
 # OS / editor noise
 .DS_Store
 *.log
+
+# Claude Code session state — not project content
+.claude/

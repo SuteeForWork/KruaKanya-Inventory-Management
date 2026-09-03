@@ -77,9 +77,20 @@ function navCounts(state) {
   };
 }
 
+/**
+ * The real logged-in person's name — except while an admin is previewing a
+ * different role's view, when there's no real person behind that role to
+ * name, so the role's placeholder persona is shown instead.
+ */
+function displayName(state) {
+  if (state.auth && state.auth.role === state.role) return state.auth.fullName || roleByKey(state.role).person;
+  return roleByKey(state.role).person;
+}
+
 function sidebar(state) {
   const counts = navCounts(state);
   const role = roleByKey(state.role);
+  const person = displayName(state);
   const live = liveLots(state);
 
   const items = store.navSections()
@@ -118,7 +129,7 @@ function sidebar(state) {
       el('div', { class: 'rail__user' },
         el('div', { class: 'rail__avatar', text: role.short }),
         el('div', { class: 'stack grow' },
-          el('span', { class: 'rail__person', text: role.person }),
+          el('span', { class: 'rail__person', text: person }),
           el('span', { class: 'rail__role', text: role.label })
         ),
         el('button', { class: 'rail__logout', title: 'ออกจากระบบ', text: 'ออก', onClick: () => store.logout() })
@@ -143,7 +154,7 @@ function rolePill(state) {
         ROLES.map(r => ({ value: r.key, label: `${r.label} · ${r.person}` })),
         key => store.setRole(key)
       )
-    : el('span', { class: 'pill__value', text: `${role.label} · ${role.person}` });
+    : el('span', { class: 'pill__value', text: `${role.label} · ${displayName(state)}` });
 
   return el('div', { class: 'pill pill--role' },
     el('div', { class: 'pill__avatar', text: role.short }),

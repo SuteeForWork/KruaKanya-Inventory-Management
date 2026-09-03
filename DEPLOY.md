@@ -110,3 +110,35 @@ once in the Supabase SQL Editor** (safe — it only replaces constraint
 definitions, no data is touched) before renaming an item that already has
 lots against it. A brand-new project doesn't need this: `db/schema.sql`
 already includes the cascade for anyone setting up from scratch.
+
+## Login has changed: registration + admin approval
+
+The demo account list is gone. Login is now:
+
+- **Admin** — fixed username `adminkruakanya`, checked locally (not stored in
+  Supabase), so it always works even if the database is down. Change it in
+  `src/core/access.js` if you want a different one — and if you'd like, tell
+  me and I'll update it; it's plain text in the source, not worth treating as
+  a real secret once you've changed it from what you originally sent me in
+  chat.
+- **Everyone else** registers themselves (name, department, email, phone,
+  requested role) from the login screen, then shows up under **รออนุมัติ** on
+  the ตั้งค่าสิทธิ์ผู้ใช้ page for the admin to approve or reject. Once
+  approved, they log in with their email as the username and the shared
+  password `1234`.
+
+**Run [`db/migrations/002_accounts_and_registration.sql`](migrations/002_accounts_and_registration.sql)
+once in the Supabase SQL Editor** — this is required before registration or
+staff login will work at all; it adds the `accounts` table and four database
+functions the app calls. Safe to run: creates new things, touches nothing
+existing. `db/schema.sql` also includes this for anyone setting up fresh.
+
+**Security trade-off worth knowing about.** `accounts` holds real names,
+emails and phone numbers — unlike every other table, it has no open RLS
+policy; the only way in is through those four functions, and none of them
+ever return the password. That said, this app still has no real per-session
+authentication (see the RLS note above), so the database can't actually tell
+"the admin" apart from anyone else holding the public anon key — approving
+accounts is gated by the app's UI, the same as every other admin-only action
+here, not by the database. Fine for now; closing that gap for real means
+migrating login to Supabase Auth.

@@ -19,7 +19,7 @@ import {
 } from './inventory.js';
 import { recipePlan } from './production.js';
 import {
-  PERM_ORDER, SECTIONS,
+  PERM_ORDER, SECTIONS, STAFF_ROLES,
   authenticate, defaultPerms, firstViewFor, roleByKey
 } from './access.js';
 import * as db from './db.js';
@@ -67,6 +67,10 @@ const blankItem = () => ({
   shelfLife: '', minStock: '', storage: '', mainSupplier: ''
 });
 
+const blankRegister = () => ({
+  fullName: '', department: '', email: '', phone: '', role: STAFF_ROLES[0].key
+});
+
 /* -------------------------------------------------------------------------- */
 /* Store                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -93,6 +97,13 @@ class Store {
       booting: this.persisted,
       bootError: null,
       loginForm: { user: '', pass: '', error: '' },
+      // Which panel the logged-out screen shows: 'login' | 'register' | 'registered'.
+      loginPanel: 'login',
+      registerForm: blankRegister(),
+      // Employee roster — loaded lazily, admin-only, cleared on logout so a
+      // shared computer doesn't keep PII sitting in memory between sessions.
+      accounts: [],
+      accountsLoaded: false,
       receiveForm: blankReceive(),
       issueForm: blankIssue(),
       outputForm: blankOutput(),
@@ -208,17 +219,42 @@ class Store {
 
   /* ---- session ---------------------------------------------------------- */
 
-  login() {
+  /**
+   * Two account sources: the one hardcoded admin (checked locally, so it
+   * always works even offline), and everyone else — real employees approved
+   * by that admin, checked against Supabase by email + the shared password.
+   */
+  async login() {
     const { user, pass } = this.state.loginForm;
     if (!user || !pass) {
       this.setField('loginForm', 'error', 'กรอกชื่อผู้ใช้และรหัสผ่านให้ครบ');
       return;
     }
-    const account = authenticate(user, pass);
-    if (!account) {
+
+    const localAccount = authenticate(user, pass);
+    if (localAccount) {
+      this.completeLogin(localAccount);
+      return;
+    }
+
+    if (!this.persisted) {
       this.setField('loginForm', 'error', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
       return;
     }
+
+    try {
+      const account = await db.checkLogin(user.trim(), pass);
+      if (!account) {
+        this.setField('loginForm', 'error', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง หรือบัญชียังไม่ได้รับการอนุมัติ');
+        return;
+      }
+      this.completeLogin(account);
+    } catch (e) {
+      this.setField('loginForm', 'error', `เข้าสู่ระบบไม่สำเร็จ — ${e.message}`);
+    }
+  }
+
+  completeLogin(account) {
     const role = roleByKey(account.role);
     this.set({
       auth: account,
@@ -227,15 +263,71 @@ class Store {
       branch: account.branch || ALL_BRANCHES,
       loginForm: { user: '', pass: '', error: '' }
     });
-    this.say(`เข้าสู่ระบบเป็น ${role.person} · ${role.label} · ${this.branchLabel(account.branch || ALL_BRANCHES)}`);
+    this.say(`เข้าสู่ระบบเป็น ${account.fullName || role.person} · ${role.label} · ${this.branchLabel(account.branch || ALL_BRANCHES)}`);
   }
 
   logout() {
-    this.set({ auth: null, loginForm: { user: '', pass: '', error: '' } });
+    this.set({
+      auth: null, loginForm: { user: '', pass: '', error: '' }, loginPanel: 'login',
+      // Drop the roster from memory — it's PII, no reason to keep it around
+      // once nobody's looking at it.
+      accounts: [], accountsLoaded: false
+    });
   }
 
-  fillDemoAccount(user) {
-    this.set({ loginForm: { user, pass: '1234', error: '' } });
+  /* ---- registration & approval ------------------------------------------- */
+
+  showRegisterForm()  { this.set({ loginPanel: 'register', registerForm: blankRegister() }); }
+  showLoginForm()      { this.set({ loginPanel: 'login' }); }
+
+  async register() {
+    const f = this.state.registerForm;
+    if (!f.fullName || !f.department || !f.email || !STAFF_ROLES.some(r => r.key === f.role)) {
+      this.say('กรอกไม่ครบ — ต้องมีชื่อ-นามสกุล ฝ่ายสังกัด อีเมล และเลือกหน้าที่', true);
+      return;
+    }
+    if (!this.persisted) {
+      this.say('ระบบยังไม่ได้เชื่อมต่อฐานข้อมูล ลงทะเบียนไม่ได้ในขณะนี้', true);
+      return;
+    }
+    try {
+      await db.registerAccount(f);
+      this.set({ loginPanel: 'registered', registerForm: blankRegister() });
+    } catch (e) {
+      this.say(`ลงทะเบียนไม่สำเร็จ — ${e.message}`, true);
+    }
+  }
+
+  /** Admin-only, loaded on demand — see setView(). */
+  async loadAccounts() {
+    try {
+      const accounts = await db.listAccounts();
+      this.set({ accounts, accountsLoaded: true });
+    } catch (e) {
+      this.say(`โหลดรายชื่อผู้ใช้งานไม่สำเร็จ — ${e.message}`, true);
+    }
+  }
+
+  async approveAccount(id, branchId) {
+    if (!this.isAdmin()) return;
+    try {
+      await db.approveAccount(id, branchId);
+      this.set(s => ({ accounts: s.accounts.map(a => (a.id === id ? { ...a, status: 'approved', branch: branchId } : a)) }));
+      this.say('อนุมัติผู้ใช้งานเรียบร้อย — เข้าสู่ระบบได้ด้วยอีเมลและรหัสผ่าน 1234');
+    } catch (e) {
+      this.say(`อนุมัติไม่สำเร็จ — ${e.message}`, true);
+    }
+  }
+
+  async rejectAccount(id) {
+    if (!this.isAdmin()) return;
+    try {
+      await db.rejectAccount(id);
+      this.set(s => ({ accounts: s.accounts.map(a => (a.id === id ? { ...a, status: 'rejected' } : a)) }));
+      this.say('ปฏิเสธการลงทะเบียนแล้ว');
+    } catch (e) {
+      this.say(`ปฏิเสธไม่สำเร็จ — ${e.message}`, true);
+    }
   }
 
   /** Admins can preview the app as another role without logging out. */
@@ -778,7 +870,12 @@ class Store {
 
   /* ---- view state ------------------------------------------------------- */
 
-  setView(view)   { this.set({ view }); }
+  setView(view) {
+    this.set({ view });
+    if (view === 'admin' && this.isAdmin() && this.persisted && !this.state.accountsLoaded) {
+      this.loadAccounts();
+    }
+  }
   setSearch(q)    { this.set({ search: q }); }
   setMoveFilter(f) { this.set({ moveFilter: f }); }
 

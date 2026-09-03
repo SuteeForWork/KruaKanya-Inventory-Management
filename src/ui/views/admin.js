@@ -1,9 +1,10 @@
-/** ตั้งค่าสิทธิ์ผู้ใช้ — the role × section permission matrix. */
+/** ตั้งค่าสิทธิ์ผู้ใช้ — employee approval queue, staff roster, and the role × section permission matrix. */
 
-import { el } from '../dom.js';
-import { table, td, tr } from '../components.js';
+import { el, when } from '../dom.js';
+import { badge, card, confirmAction, table, td, tdCode, tdTitled, tr } from '../components.js';
 import { store } from '../../core/store.js';
 import { PERM_LABELS, ROLES, SECTIONS } from '../../core/access.js';
+import { shortDate } from '../../core/format.js';
 
 const NOTES = [
   {
@@ -19,6 +20,93 @@ const NOTES = [
     body: 'เมนูที่ไม่มีสิทธิ์จะถูกซ่อน ฟอร์มบันทึกจะไม่แสดงเมื่อมีสิทธิ์เพียงดูอย่างเดียว และการกดบันทึกจะถูกปฏิเสธพร้อมแจ้งเตือน'
   }
 ];
+
+const PENDING_HEAD = [
+  'ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่ที่ขอ', 'วันที่ลงทะเบียน', 'สาขาที่จะสังกัด', ''
+];
+
+const ROSTER_HEAD = ['ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่', 'สาขา', 'สถานะ'];
+
+function roleLabel(key) {
+  return (ROLES.find(r => r.key === key) || {}).label || key;
+}
+
+/** A plain (non-bound) select so its live value can be read at click time — no store state needed for it. */
+function branchSelect(state) {
+  const select = el('select', null,
+    el('option', { value: 'ALL', text: 'ทุกสาขา' }),
+    state.branches.map(b => el('option', { value: b.id, text: `${b.id} · ${b.name}` }))
+  );
+  return select;
+}
+
+function pendingRow(state, a) {
+  const select = branchSelect(state);
+  return tr(
+    tdTitled(a.fullName, a.department, { mono: false }),
+    td(a.department),
+    tdCode(a.email),
+    tdCode(a.phone || '-'),
+    td(roleLabel(a.role)),
+    tdCode(shortDate(a.createdAt.slice(0, 10))),
+    td(select),
+    td(
+      el('div', { class: 'row', style: { gap: '6px' } },
+        el('button', {
+          class: 'btn btn--small', text: 'อนุมัติ',
+          onClick: () => {
+            if (!confirmAction(`ยืนยันอนุมัติ ${a.fullName} (${a.email}) เป็น "${roleLabel(a.role)}"?`)) return;
+            store.approveAccount(a.id, select.value);
+          }
+        }),
+        el('button', {
+          class: 'btn btn--small', text: 'ปฏิเสธ',
+          onClick: () => {
+            if (!confirmAction(`ยืนยันปฏิเสธการลงทะเบียนของ ${a.fullName} (${a.email})?`)) return;
+            store.rejectAccount(a.id);
+          }
+        })
+      )
+    )
+  );
+}
+
+function rosterRow(state, a) {
+  const badgeByStatus = {
+    approved: badge('อนุมัติแล้ว', 'ok'),
+    rejected: badge('ปฏิเสธแล้ว', 'danger')
+  };
+  return tr(
+    tdTitled(a.fullName, a.department, { mono: false }),
+    td(a.department),
+    tdCode(a.email),
+    tdCode(a.phone || '-'),
+    td(roleLabel(a.role)),
+    td(store.branchLabel(a.branch)),
+    td(badgeByStatus[a.status] || badge(a.status, 'watch'))
+  );
+}
+
+function accountsSection(state) {
+  if (!store.persisted) return null;
+
+  const pending = state.accounts.filter(a => a.status === 'pending');
+  const roster = state.accounts.filter(a => a.status !== 'pending');
+
+  return el('div', { class: 'page__sections', style: { marginBottom: '14px' } },
+    card({ title: 'รออนุมัติ', note: `${pending.length} รายการ` },
+      state.accountsLoaded
+        ? (pending.length
+            ? table(PENDING_HEAD, pending.map(a => pendingRow(state, a)))
+            : el('div', { style: { padding: '18px' }, class: 'card__note', text: 'ไม่มีคำขอลงทะเบียนที่รออนุมัติ' }))
+        : el('div', { style: { padding: '18px' }, class: 'card__note', text: 'กำลังโหลด…' })
+    ),
+    when(roster.length, () =>
+      card({ title: 'ทะเบียนผู้ใช้งาน', note: `${roster.length} ราย` },
+        table(ROSTER_HEAD, roster.map(a => rosterRow(state, a)))
+      ))
+  );
+}
 
 /** Header: one label column, then one centred column per section. */
 function headings() {
@@ -47,6 +135,8 @@ function permButton(role, section) {
 }
 
 export function adminView() {
+  const state = store.state;
+
   const matrix = el('div', { class: 'table-scroll' },
     el('table', { class: 'table' },
       headings(),
@@ -71,6 +161,7 @@ export function adminView() {
   );
 
   return el('div', { class: 'page__sections' },
+    accountsSection(state),
     el('section', { class: 'card' }, head, matrix),
     el('div', { class: 'grid-cards grid-cards--lg' },
       NOTES.map(nCard => el('div', { class: 'note-card' },

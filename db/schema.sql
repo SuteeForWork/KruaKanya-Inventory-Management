@@ -15,6 +15,7 @@
 -- hold data you care about — CASCADE below deletes rows, not just structure.
 -- ==========================================================================
 
+drop table if exists accounts cascade;
 drop table if exists profiles cascade;
 drop table if exists role_permissions cascade;
 drop table if exists outputs cascade;
@@ -220,3 +221,139 @@ create policy "open access" on role_permissions for all using (true) with check 
 -- (a user may only ever touch their own row) so it's safe to leave in place.
 create policy "users manage own profile" on profiles for all
   using (auth.uid() = id) with check (auth.uid() = id);
+
+-- ==========================================================================
+-- Employee accounts — self-registration + admin approval
+--
+-- Not part of the auth.users/profiles pair above (that pairing is reserved
+-- for a future real Supabase Auth migration and is currently unused). This
+-- is a standalone table mirroring the app's actual current login model:
+-- one hardcoded admin account (src/core/access.js), plus employees who
+-- register themselves and wait for that admin to approve them, after which
+-- they log in with their email and the shared default password '1234'.
+--
+-- Deliberately NOT given an open RLS policy like every other table in this
+-- file — it holds real names, emails and phone numbers, the first PII this
+-- project stores. See db/migrations/002_accounts_and_registration.sql for
+-- the full reasoning and the security caveat that comes with it.
+-- ==========================================================================
+
+create extension if not exists pgcrypto;
+
+drop function if exists public.register_account(text, text, text, text, text) cascade;
+drop function if exists public.check_login(text, text) cascade;
+drop function if exists public.list_accounts() cascade;
+drop function if exists public.approve_account(bigint, text) cascade;
+drop function if exists public.reject_account(bigint) cascade;
+
+create table accounts (
+  id            bigint generated always as identity primary key,
+  full_name     text not null,
+  department    text not null,
+  email         text not null,
+  phone         text,
+  role          text not null check (role in ('purchasing', 'store', 'kitchen', 'qa', 'exec')),
+  branch_id     text references branches(id),   -- null = ทุกสาขา, set on approval
+  status        text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  password_hash text not null default crypt('1234', gen_salt('bf')),
+  created_at    timestamptz not null default now(),
+  approved_at   timestamptz
+);
+
+create unique index accounts_email_unique_idx on accounts (lower(email));
+
+alter table accounts enable row level security;
+-- Deliberately no policies — see the note above. All access goes through
+-- the functions below, which run as the table owner and bypass RLS.
+
+-- ---------------------------------------------------------------------------
+-- register_account — the public sign-up form calls this.
+-- ---------------------------------------------------------------------------
+create or replace function public.register_account(
+  p_full_name  text,
+  p_department text,
+  p_email      text,
+  p_phone      text,
+  p_role       text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if exists (select 1 from accounts where lower(email) = lower(p_email)) then
+    raise exception 'อีเมลนี้เคยลงทะเบียนไว้แล้ว';
+  end if;
+  insert into accounts (full_name, department, email, phone, role)
+  values (p_full_name, p_department, p_email, p_phone, p_role);
+end;
+$$;
+grant execute on function public.register_account(text, text, text, text, text) to anon;
+
+-- ---------------------------------------------------------------------------
+-- check_login — the login form calls this for any username that isn't the
+-- hardcoded admin. Only ever returns a row for an approved account whose
+-- password matches; never returns the hash itself.
+-- ---------------------------------------------------------------------------
+create or replace function public.check_login(p_email text, p_password text)
+returns table (account_id bigint, full_name text, role text, branch_id text)
+language sql
+security definer
+set search_path = public
+as $$
+  select id, full_name, role, branch_id
+  from accounts
+  where lower(email) = lower(p_email)
+    and status = 'approved'
+    and password_hash = crypt(p_password, password_hash)
+  limit 1;
+$$;
+grant execute on function public.check_login(text, text) to anon;
+
+-- ---------------------------------------------------------------------------
+-- list_accounts — powers the admin's approval queue and staff roster.
+-- Never returns password_hash.
+-- ---------------------------------------------------------------------------
+create or replace function public.list_accounts()
+returns table (
+  id bigint, full_name text, department text, email text, phone text,
+  role text, branch_id text, status text, created_at timestamptz, approved_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select id, full_name, department, email, phone, role, branch_id, status, created_at, approved_at
+  from accounts
+  order by created_at desc;
+$$;
+grant execute on function public.list_accounts() to anon;
+
+-- ---------------------------------------------------------------------------
+-- approve_account / reject_account — the admin's queue action buttons.
+-- ---------------------------------------------------------------------------
+create or replace function public.approve_account(p_id bigint, p_branch_id text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update accounts
+  set status = 'approved', branch_id = p_branch_id, approved_at = now()
+  where id = p_id;
+end;
+$$;
+grant execute on function public.approve_account(bigint, text) to anon;
+
+create or replace function public.reject_account(p_id bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update accounts set status = 'rejected' where id = p_id;
+end;
+$$;
+grant execute on function public.reject_account(bigint) to anon;
