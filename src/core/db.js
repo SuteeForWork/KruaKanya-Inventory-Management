@@ -344,20 +344,45 @@ export async function updateAdminName(fullName) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Role labels — overrides for the permission matrix's role/person column.    */
+/* Roles — the set of roles itself is admin-editable, not just their labels.  */
+/* `roles` is open-access (cosmetic data), so label/person edits are a plain  */
+/* table update; add/delete go through RPCs since adding one also needs a    */
+/* matching row per section in role_permissions, and deleting one needs the  */
+/* "not in use" check done server-side.                                      */
 /* -------------------------------------------------------------------------- */
 
-/** `{ [roleKey]: { label, person } }` for every role with a stored override. */
-export async function getRoleLabels() {
-  const { data, error } = await supabase.from('role_labels').select('role_key, label, person');
-  if (error) throw new Error(`โหลดชื่อบทบาท: ${error.message}`);
-  const map = {};
-  (data || []).forEach(r => { map[r.role_key] = { label: r.label, person: r.person }; });
-  return map;
+export async function getRoles() {
+  const { data, error } = await supabase.from('roles').select('role_key, label, person').order('role_key');
+  if (error) throw new Error(`โหลดบทบาท: ${error.message}`);
+  return data.map(r => ({ roleKey: r.role_key, label: r.label, person: r.person }));
 }
 
-export async function updateRoleLabel(roleKey, label, person) {
-  must(await supabase.from('role_labels').upsert(
-    { role_key: roleKey, label, person }, { onConflict: 'role_key' }
-  ), 'แก้ไขบทบาท');
+export async function updateRole(roleKey, label, person) {
+  must(await supabase.from('roles').update({ label, person }).eq('role_key', roleKey), 'แก้ไขบทบาท');
+}
+
+export async function addRole(roleKey, label, person, sectionKeys) {
+  must(await supabase.rpc('add_role', {
+    p_role_key: roleKey, p_label: label, p_person: person, p_sections: sectionKeys
+  }), 'เพิ่มบทบาท');
+}
+
+export async function deleteRole(roleKey) {
+  must(await supabase.rpc('delete_role', { p_role_key: roleKey }), 'ลบบทบาท');
+}
+
+/* -------------------------------------------------------------------------- */
+/* Admin managing accounts directly, bypassing self-registration.            */
+/* -------------------------------------------------------------------------- */
+
+export async function adminAddAccount(account) {
+  must(await supabase.rpc('admin_add_account', {
+    p_full_name: account.fullName, p_department: account.department,
+    p_email: account.email, p_phone: account.phone, p_role: account.role,
+    p_branch_id: account.branch === 'ALL' ? null : account.branch
+  }), 'เพิ่มผู้ใช้งาน');
+}
+
+export async function deleteAccount(id) {
+  must(await supabase.rpc('delete_account', { p_id: id }), 'ลบผู้ใช้งาน');
 }

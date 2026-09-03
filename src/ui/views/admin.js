@@ -1,9 +1,12 @@
 /** ตั้งค่าสิทธิ์ผู้ใช้ — employee approval queue, staff roster, and the role × section permission matrix. */
 
 import { el, when } from '../dom.js';
-import { badge, card, confirmAction, table, td, tdCode, tdTitled, tr } from '../components.js';
+import {
+  badge, card, confirmAction, fieldGrid, formCard, inputField, selectField,
+  table, td, tdCode, tdTitled, tr
+} from '../components.js';
 import { store } from '../../core/store.js';
-import { PERM_LABELS, ROLES, SECTIONS } from '../../core/access.js';
+import { PERM_LABELS, ROLES, SECTIONS, STAFF_ROLES } from '../../core/access.js';
 import { shortDate } from '../../core/format.js';
 
 const NOTES = [
@@ -22,10 +25,21 @@ const NOTES = [
 ];
 
 const PENDING_HEAD = [
-  'ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่ที่ขอ', 'วันที่ลงทะเบียน', 'สาขาที่จะสังกัด', ''
+  'ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่ที่ขอ', 'วันที่ลงทะเบียน', 'สาขาที่จะสังกัด', '', ''
 ];
 
-const ROSTER_HEAD = ['ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่', 'สาขา', 'สถานะ', ''];
+const ROSTER_HEAD = ['ชื่อ-นามสกุล', 'ฝ่ายสังกัด', 'อีเมล', 'เบอร์โทร', 'หน้าที่', 'สาขา', 'สถานะ', '', ''];
+
+function deleteAccountButton(a) {
+  return el('button', {
+    class: 'btn btn--small', text: 'ลบ',
+    onClick: () => {
+      if (confirmAction(`ยืนยันลบผู้ใช้งาน ${a.fullName} (${a.email}) ถาวร? การลบนี้กู้คืนไม่ได้`)) {
+        store.deleteAccount(a.id);
+      }
+    }
+  });
+}
 
 function roleLabel(key) {
   return (ROLES.find(r => r.key === key) || {}).label || key;
@@ -67,7 +81,8 @@ function pendingRow(state, a) {
           }
         })
       )
-    )
+    ),
+    td(deleteAccountButton(a))
   );
 }
 
@@ -112,7 +127,8 @@ function rosterRow(state, a) {
     td(state.editingAccountId === a.id ? null : el('button', {
       class: 'btn btn--small', text: 'แก้ไขชื่อ',
       onClick: () => store.startEditAccountName(a.id, a.fullName)
-    }))
+    })),
+    td(deleteAccountButton(a))
   );
 }
 
@@ -147,6 +163,36 @@ function adminProfileCard(state) {
   );
 }
 
+/** Admin creating an already-approved employee directly, bypassing the queue. */
+function newAccountForm(state) {
+  const roleOptions = STAFF_ROLES.map(r => ({ value: r.key, label: r.label }));
+  const branchOptions = [{ value: 'ALL', label: 'ทุกสาขา' }].concat(
+    state.branches.map(b => ({ value: b.id, label: `${b.id} · ${b.name}` }))
+  );
+
+  return formCard({ title: 'เพิ่มผู้ใช้งานใหม่', note: 'สร้างแบบอนุมัติทันที ไม่ต้องรอผ่านคิว' },
+    fieldGrid('xs',
+      inputField('ชื่อ-นามสกุล', 'newAccountForm', 'fullName', { placeholder: 'เช่น สมชาย ใจดี' }),
+      inputField('ฝ่ายสังกัด', 'newAccountForm', 'department', { placeholder: 'เช่น ฝ่ายจัดซื้อ' }),
+      inputField('อีเมล', 'newAccountForm', 'email', { type: 'email', placeholder: 'name@company.com' }),
+      inputField('เบอร์โทร', 'newAccountForm', 'phone', { placeholder: '0xx-xxx-xxxx' }),
+      selectField('หน้าที่', 'newAccountForm', 'role', roleOptions),
+      selectField('สาขา', 'newAccountForm', 'branch', branchOptions),
+      el('div', { class: 'field field--action' },
+        el('button', {
+          class: 'btn btn--primary btn--block', text: 'เพิ่มผู้ใช้งาน',
+          onClick: () => {
+            const f = state.newAccountForm;
+            if (confirmAction(`ยืนยันเพิ่ม ${f.fullName || '(ยังไม่กรอกชื่อ)'} เป็นผู้ใช้งานที่อนุมัติแล้ว?`)) {
+              store.addAccountDirect();
+            }
+          }
+        })
+      )
+    )
+  );
+}
+
 function accountsSection(state) {
   if (!store.persisted) return null;
 
@@ -165,7 +211,8 @@ function accountsSection(state) {
     when(roster.length, () =>
       card({ title: 'ทะเบียนผู้ใช้งาน', note: `${roster.length} ราย` },
         table(ROSTER_HEAD, roster.map(a => rosterRow(state, a)))
-      ))
+      )),
+    newAccountForm(state)
   );
 }
 
@@ -185,10 +232,20 @@ function roleCell(state, role) {
     return el('td', { class: 'role-cell' },
       el('div', { class: 'cell__title', text: role.label }),
       el('div', { class: 'cell__sub', text: role.person }),
-      when(store.isAdmin(), () => el('button', {
-        class: 'btn btn--small', style: { marginTop: '6px' }, text: 'แก้ไข',
-        onClick: () => store.startEditRoleLabel(role.key)
-      }))
+      when(store.isAdmin(), () => el('div', { class: 'row', style: { gap: '6px', marginTop: '6px' } },
+        el('button', {
+          class: 'btn btn--small', text: 'แก้ไข',
+          onClick: () => store.startEditRoleLabel(role.key)
+        }),
+        when(role.key !== 'admin', () => el('button', {
+          class: 'btn btn--small', text: 'ลบ',
+          onClick: () => {
+            if (confirmAction(`ยืนยันลบบทบาท "${role.label}"? ทำได้เฉพาะบทบาทที่ไม่มีผู้ใช้งานสังกัดอยู่`)) {
+              store.deleteRole(role.key);
+            }
+          }
+        }))
+      ))
     );
   }
 
@@ -214,6 +271,26 @@ function roleCell(state, role) {
           }
         }),
         el('button', { class: 'btn btn--small', text: 'ยกเลิก', onClick: () => store.cancelEditRoleLabel() })
+      )
+    )
+  );
+}
+
+/** A new role starts with every section at 'none' — admin adjusts from the matrix after. */
+function addRoleForm(state) {
+  return formCard({ title: 'เพิ่มบทบาทใหม่', note: 'สิทธิ์เริ่มต้นคือ "ไม่เห็นเมนู" ทุกส่วน ปรับได้จากตารางด้านบนหลังเพิ่ม' },
+    fieldGrid('xs',
+      inputField('รหัสบทบาท', 'roleForm', 'key', { placeholder: 'เช่น fg (อังกฤษพิมพ์เล็ก ไม่เว้นวรรค)', mono: true }),
+      inputField('ชื่อบทบาท', 'roleForm', 'label', { placeholder: 'เช่น ฝ่าย FG' }),
+      inputField('ชื่อผู้ใช้ตัวอย่าง', 'roleForm', 'person', { placeholder: 'เช่น วิภา ส.' }),
+      el('div', { class: 'field field--action' },
+        el('button', {
+          class: 'btn btn--primary btn--block', text: 'เพิ่มบทบาท',
+          onClick: () => {
+            const f = state.roleForm;
+            if (confirmAction(`ยืนยันเพิ่มบทบาท "${f.label || '(ยังไม่กรอกชื่อ)'}"?`)) store.addRole();
+          }
+        })
       )
     )
   );
@@ -261,6 +338,7 @@ export function adminView() {
   return el('div', { class: 'page__sections' },
     accountsSection(state),
     el('section', { class: 'card' }, head, matrix),
+    addRoleForm(state),
     el('div', { class: 'grid-cards grid-cards--lg' },
       NOTES.map(nCard => el('div', { class: 'note-card' },
         el('div', { class: 'note-card__title', text: nCard.title }),

@@ -19,8 +19,8 @@ import {
 } from './inventory.js';
 import { recipePlan } from './production.js';
 import {
-  PERM_ORDER, SECTIONS, STAFF_ROLES,
-  applyRoleLabelOverrides, authenticate, defaultPerms, firstViewFor, roleByKey
+  PERM_ORDER, ROLES, SECTIONS, STAFF_ROLES,
+  setRoles, authenticate, defaultPerms, firstViewFor, roleByKey
 } from './access.js';
 import * as db from './db.js';
 
@@ -71,6 +71,13 @@ const blankRegister = () => ({
   fullName: '', department: '', email: '', phone: '', role: STAFF_ROLES[0].key
 });
 
+/** Same shape as blankRegister — admin adding an employee directly, already approved. */
+const blankNewAccount = () => ({
+  fullName: '', department: '', email: '', phone: '', role: STAFF_ROLES[0].key, branch: 'ALL'
+});
+
+const blankRoleForm = () => ({ key: '', label: '', person: '' });
+
 /* -------------------------------------------------------------------------- */
 /* Store                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -113,6 +120,8 @@ class Store {
       editingRoleKey: null,
       editRoleLabel: '',
       editRolePerson: '',
+      roleForm: blankRoleForm(),
+      newAccountForm: blankNewAccount(),
       receiveForm: blankReceive(),
       issueForm: blankIssue(),
       outputForm: blankOutput(),
@@ -145,14 +154,14 @@ class Store {
       return;
     }
 
-    // Independent of the load above — a missing migration 004 shouldn't take
-    // down the whole app, it just means the defaults from access.js stand.
-    // applyRoleLabelOverrides mutates ROLES in place rather than going
-    // through state, so nudge a re-render afterwards to pick it up.
+    // Independent of the load above — a missing migration 005 shouldn't take
+    // down the whole app, it just means the built-in roles from access.js
+    // stand. setRoles() mutates ROLES in place rather than going through
+    // state, so nudge a re-render afterwards to pick it up.
     try {
-      applyRoleLabelOverrides(await db.getRoleLabels());
+      setRoles(await db.getRoles());
       this.set({});
-    } catch { /* migration 004 not run yet — keep the built-in labels */ }
+    } catch { /* migration 005 not run yet — keep the built-in roles */ }
   }
 
   /* ---- plumbing --------------------------------------------------------- */
@@ -358,6 +367,30 @@ class Store {
     }
   }
 
+  /** Admin creating an already-approved employee directly — skips the queue. */
+  async addAccountDirect() {
+    if (!this.isAdmin()) return;
+    const f = this.state.newAccountForm;
+    if (!f.fullName || !f.department || !f.email || !STAFF_ROLES.some(r => r.key === f.role)) {
+      this.say('กรอกไม่ครบ — ต้องมีชื่อ-นามสกุล ฝ่ายสังกัด อีเมล และเลือกหน้าที่', true);
+      return;
+    }
+
+    const ok = await this.persist('เพิ่มผู้ใช้งาน', () => db.adminAddAccount(f));
+    if (!ok) return;
+    await this.loadAccounts();
+    this.set({ newAccountForm: blankNewAccount() });
+    this.say(`เพิ่ม ${f.fullName} เรียบร้อย — เข้าสู่ระบบได้ด้วยอีเมลและรหัสผ่าน 1234`);
+  }
+
+  async deleteAccount(id) {
+    if (!this.isAdmin()) return;
+    const ok = await this.persist('ลบผู้ใช้งาน', () => db.deleteAccount(id));
+    if (!ok) return;
+    this.set(s => ({ accounts: s.accounts.filter(a => a.id !== id) }));
+    this.say('ลบผู้ใช้งานเรียบร้อย');
+  }
+
   /* ---- editing names ------------------------------------------------------ */
 
   /** Admin renaming a registered employee — name only, see migration 003. */
@@ -433,11 +466,51 @@ class Store {
     const person = this.state.editRolePerson.trim();
     if (!label || !person) { this.say('กรอกชื่อบทบาทและชื่อตัวอย่างให้ครบ', true); return; }
 
-    const ok = await this.persist('แก้ไขบทบาท', () => db.updateRoleLabel(key, label, person));
+    const ok = await this.persist('แก้ไขบทบาท', () => db.updateRole(key, label, person));
     if (!ok) return;
-    applyRoleLabelOverrides({ [key]: { label, person } });
+    setRoles(await db.getRoles());
     this.set({ editingRoleKey: null, editRoleLabel: '', editRolePerson: '' });
     this.say('แก้ไขบทบาทเรียบร้อย');
+  }
+
+  /** A new row of permission checkboxes shows up automatically — every
+   *  section starts at 'none', matching what add_role seeds server-side. */
+  async addRole() {
+    if (!this.isAdmin()) return;
+    const f = this.state.roleForm;
+    const key = f.key.trim().toLowerCase();
+    const label = f.label.trim();
+    const person = f.person.trim();
+
+    if (!key || !label || !person) { this.say('กรอกรหัส ชื่อบทบาท และชื่อตัวอย่างให้ครบ', true); return; }
+    if (!/^[a-z][a-z0-9_]{1,19}$/.test(key)) {
+      this.say('รหัสบทบาทต้องเป็นตัวอักษรอังกฤษพิมพ์เล็กและตัวเลข ขึ้นต้นด้วยตัวอักษร เช่น "fg"', true);
+      return;
+    }
+    if (ROLES.some(r => r.key === key)) { this.say(`รหัสบทบาท "${key}" มีอยู่แล้ว`, true); return; }
+
+    const sectionKeys = SECTIONS.map(s => s.key);
+    const ok = await this.persist('เพิ่มบทบาท', () => db.addRole(key, label, person, sectionKeys));
+    if (!ok) return;
+    setRoles(await db.getRoles());
+    const blankPerm = sectionKeys.reduce((acc, s) => ({ ...acc, [s]: 'none' }), {});
+    this.set(s => ({ roleForm: blankRoleForm(), perms: { ...s.perms, [key]: blankPerm } }));
+    this.say(`เพิ่มบทบาท "${label}" เรียบร้อย`);
+  }
+
+  async deleteRole(key) {
+    if (!this.isAdmin()) return;
+    if (key === 'admin') { this.say('ไม่สามารถลบบทบาทผู้ดูแลระบบได้', true); return; }
+
+    const ok = await this.persist('ลบบทบาท', () => db.deleteRole(key));
+    if (!ok) return;
+    setRoles(await db.getRoles());
+    this.set(s => {
+      const perms = { ...s.perms };
+      delete perms[key];
+      return { perms };
+    });
+    this.say('ลบบทบาทเรียบร้อย');
   }
 
   /** Admins can preview the app as another role without logging out. */

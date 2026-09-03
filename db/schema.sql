@@ -15,6 +15,7 @@
 -- hold data you care about — CASCADE below deletes rows, not just structure.
 -- ==========================================================================
 
+drop table if exists roles cascade;
 drop table if exists role_labels cascade;
 drop table if exists admin_profile cascade;
 drop table if exists accounts cascade;
@@ -254,7 +255,7 @@ create table accounts (
   department    text not null,
   email         text not null,
   phone         text,
-  role          text not null check (role in ('purchasing', 'store', 'kitchen', 'qa', 'exec')),
+  role          text not null,   -- references roles(role_key) — added below, after roles exists
   branch_id     text references branches(id),   -- null = ทุกสาขา, set on approval
   status        text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   password_hash text not null default extensions.crypt('1234', extensions.gen_salt('bf')),
@@ -391,16 +392,110 @@ $$;
 grant execute on function public.update_account_name(bigint, text) to anon;
 
 -- ==========================================================================
--- Editable role names + example-user labels
+-- Roles — a real table instead of a hardcoded list. Admin can add, edit,
+-- or delete roles from the UI. 'admin' can't be deleted (enforced in
+-- delete_role below and in src/core/store.js) since it's the one role tied
+-- to the hardcoded bootstrap login.
 --
--- See db/migrations/004_role_labels.sql for the full reasoning.
+-- See db/migrations/005_dynamic_roles_and_account_management.sql for the
+-- full reasoning.
 -- ==========================================================================
 
-create table role_labels (
+create table roles (
   role_key text primary key,
   label    text not null,
   person   text not null
 );
+alter table roles enable row level security;
+create policy "open access" on roles for all using (true) with check (true);
 
-alter table role_labels enable row level security;
-create policy "open access" on role_labels for all using (true) with check (true);
+insert into roles (role_key, label, person) values
+  ('admin',      'ผู้ดูแลระบบ',     'ณัฐพล ส.'),
+  ('purchasing', 'พนักงานจัดซื้อ',  'กมลชนก ท.'),
+  ('store',      'พนักงานคลัง',     'ธีรภัทร อ.'),
+  ('kitchen',    'ครัว / ฝ่ายผลิต', 'เชฟกวิน ร.'),
+  ('qa',         'QA / คุณภาพ',     'อรุณี พ.'),
+  ('exec',       'ผู้บริหาร',       'ปิยะ ม.');
+
+alter table role_permissions
+  add constraint role_permissions_role_fkey foreign key (role) references roles(role_key) on delete cascade;
+
+alter table accounts
+  add constraint accounts_role_fkey foreign key (role) references roles(role_key);
+
+create or replace function public.add_role(p_role_key text, p_label text, p_person text, p_sections text[])
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  s text;
+begin
+  if exists (select 1 from roles where role_key = p_role_key) then
+    raise exception 'มีบทบาทรหัส "%" อยู่แล้ว', p_role_key;
+  end if;
+  insert into roles (role_key, label, person) values (p_role_key, p_label, p_person);
+  foreach s in array p_sections loop
+    insert into role_permissions (role, section, level) values (p_role_key, s, 'none');
+  end loop;
+end;
+$$;
+grant execute on function public.add_role(text, text, text, text[]) to anon;
+
+create or replace function public.delete_role(p_role_key text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_role_key = 'admin' then
+    raise exception 'ไม่สามารถลบบทบาทผู้ดูแลระบบได้';
+  end if;
+  if exists (select 1 from accounts where role = p_role_key) then
+    raise exception 'มีผู้ใช้งานสังกัดบทบาทนี้อยู่ — เปลี่ยนบทบาทของผู้ใช้เหล่านั้นก่อนลบ';
+  end if;
+  delete from roles where role_key = p_role_key; -- cascades to role_permissions
+end;
+$$;
+grant execute on function public.delete_role(text) to anon;
+
+-- ==========================================================================
+-- Admin managing accounts directly — add one already-approved (skips the
+-- pending queue), or delete one permanently.
+-- ==========================================================================
+
+create or replace function public.admin_add_account(
+  p_full_name  text,
+  p_department text,
+  p_email      text,
+  p_phone      text,
+  p_role       text,
+  p_branch_id  text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if exists (select 1 from accounts where lower(email) = lower(p_email)) then
+    raise exception 'อีเมลนี้มีอยู่แล้วในระบบ';
+  end if;
+  insert into accounts (full_name, department, email, phone, role, branch_id, status, approved_at)
+  values (p_full_name, p_department, p_email, p_phone, p_role, p_branch_id, 'approved', now());
+end;
+$$;
+grant execute on function public.admin_add_account(text, text, text, text, text, text) to anon;
+
+create or replace function public.delete_account(p_id bigint)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from accounts where id = p_id;
+end;
+$$;
+grant execute on function public.delete_account(bigint) to anon;

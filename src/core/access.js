@@ -10,19 +10,26 @@ export const ROLES = [
 ];
 
 /**
- * Applies admin-chosen overrides to ROLES's label/person in place — every
- * existing `roleByKey(key).label` call site picks the change up automatically,
- * no threading it through views or state needed. Role keys themselves are
- * never overridden; they're wired into permissions, registration, and
- * everywhere else.
+ * Replaces ROLES' contents in place from rows loaded via db.getRoles() —
+ * every existing `roleByKey(key)` / `ROLES.map(...)` call site picks up the
+ * change automatically, since they all read this same array reference (no
+ * threading state through views needed). Reassigns STAFF_ROLES too: as a
+ * `let` export, every module that imported it sees the new value on next
+ * access — that's how ES module live bindings work, unlike a plain object
+ * property.
+ *
+ * `short` (the 2-character avatar initial) isn't stored in the database;
+ * it's derived here so admin never has to fill in one more field just to
+ * add a role.
  */
-export function applyRoleLabelOverrides(overrides) {
-  ROLES.forEach(r => {
-    const o = overrides[r.key];
-    if (!o) return;
-    if (o.label) r.label = o.label;
-    if (o.person) r.person = o.person;
-  });
+export function setRoles(rows) {
+  if (!rows || !rows.length) return; // offline, or migration 005 not run yet — keep the built-in defaults
+  ROLES.length = 0;
+  rows.forEach(r => ROLES.push({
+    key: r.roleKey, label: r.label, person: r.person,
+    short: (r.label.trim()[0] || '') + (r.person.trim()[0] || '')
+  }));
+  STAFF_ROLES = ROLES.filter(r => r.key !== 'admin');
 }
 
 /** Sections that appear as columns in the permission matrix. */
@@ -52,8 +59,12 @@ export const ACCOUNTS = [
   { user: 'adminkruakanya', pass: 'kruakanya150926', role: 'admin', branch: 'ALL', fullName: 'ผู้ดูแลระบบ' }
 ];
 
-/** Roles an employee may request at registration — never 'admin'. */
-export const STAFF_ROLES = ROLES.filter(r => r.key !== 'admin');
+/**
+ * Roles an employee may request at registration — never 'admin'. `let`, not
+ * `const`: setRoles() reassigns this after roles are added/removed, and ES
+ * module live bindings mean every importer sees that update automatically.
+ */
+export let STAFF_ROLES = ROLES.filter(r => r.key !== 'admin');
 
 export const PERM_ORDER = ['none', 'view', 'edit'];
 
