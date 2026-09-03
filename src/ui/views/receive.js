@@ -2,7 +2,7 @@
 
 import { el, when } from '../dom.js';
 import {
-  card, fieldGrid, formCard, inputField, selectField,
+  card, confirmAction, fieldGrid, formCard, inputField, selectField,
   submitRow, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
@@ -70,7 +70,13 @@ function form(state) {
       el('div', { class: 'row', style: { gap: '8px' } },
         el('button', {
           class: 'btn btn--primary btn--submit', text: editing ? 'บันทึกการแก้ไข' : 'บันทึกรับเข้า',
-          onClick: () => (editing ? store.saveLotEdit() : store.submitReceive())
+          onClick: () => {
+            if (editing) {
+              if (confirmAction(`ยืนยันบันทึกการแก้ไขรายการรับเข้า ${editing}?`)) store.saveLotEdit();
+              return;
+            }
+            store.submitReceive();
+          }
         }),
         when(editing, () => el('button', { class: 'btn', text: 'ยกเลิก', onClick: () => store.cancelEditLot() }))
       )

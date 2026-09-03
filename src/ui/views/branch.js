@@ -2,7 +2,7 @@
 
 import { el, when } from '../dom.js';
 import {
-  card, fieldGrid, formCard, inputField, selectField,
+  card, confirmAction, fieldGrid, formCard, inputField, selectField,
   table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store, BRANCH_TYPES } from '../../core/store.js';
@@ -52,7 +52,10 @@ function form(state) {
       el('div', { class: 'field field--action', style: { flexDirection: 'row', gap: '8px' } },
         el('button', {
           class: 'btn btn--primary btn--block', text: editing ? 'บันทึกการแก้ไข' : 'เพิ่มสาขา',
-          onClick: () => store.addBranch()
+          onClick: () => {
+            if (editing && !confirmAction(`ยืนยันบันทึกการแก้ไขสาขา ${editing}?`)) return;
+            store.addBranch();
+          }
         }),
         when(editing, () => el('button', { class: 'btn', text: 'ยกเลิก', onClick: () => store.cancelEditBranch() }))
       )

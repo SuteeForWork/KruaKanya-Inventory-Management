@@ -2,7 +2,7 @@
 
 import { el, when } from '../dom.js';
 import {
-  card, fieldGrid, formCard, inputField, meter, selectField,
+  card, confirmAction, fieldGrid, formCard, inputField, meter, selectField,
   table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
@@ -32,7 +32,10 @@ function supplierForm(state) {
       el('div', { class: 'field field--action', style: { flexDirection: 'row', gap: '8px' } },
         el('button', {
           class: 'btn btn--primary btn--block', text: editing ? 'บันทึกการแก้ไข' : 'เพิ่มซัพพลายเออร์',
-          onClick: () => store.addSupplier()
+          onClick: () => {
+            if (editing && !confirmAction(`ยืนยันบันทึกการแก้ไขซัพพลายเออร์ ${editing}?`)) return;
+            store.addSupplier();
+          }
         }),
         when(editing, () => el('button', { class: 'btn', text: 'ยกเลิก', onClick: () => store.cancelEditSupplier() }))
       )
@@ -43,9 +46,12 @@ function supplierForm(state) {
 function itemForm(state) {
   const editing = state.editingItem;
   const supplierOptions = state.suppliers.map(s => ({ value: s.name, label: s.name }));
-  return formCard({ title: editing ? `แก้ไขวัตถุดิบ · ${editing}` : 'เพิ่มวัตถุดิบใหม่ (Item Master)' },
+  return formCard({
+    title: editing ? `แก้ไขวัตถุดิบ · ${editing}` : 'เพิ่มวัตถุดิบใหม่ (Item Master)',
+    note: editing ? 'เปลี่ยนรหัสได้ — ล็อต ธุรกรรม และสูตรที่อ้างอิงรหัสนี้จะอัปเดตตามให้อัตโนมัติ' : null
+  },
     fieldGrid('xs',
-      inputField('รหัสวัตถุดิบ', 'itemForm', 'code', { placeholder: 'ING-VEG-020', mono: true, disabled: Boolean(editing) }),
+      inputField('รหัสวัตถุดิบ', 'itemForm', 'code', { placeholder: 'ING-VEG-020', mono: true }),
       inputField('ชื่อวัตถุดิบ', 'itemForm', 'name', { placeholder: 'เช่น แครอทหั่นเต๋า' }),
       inputField('หมวด', 'itemForm', 'category', { placeholder: 'ผักสด / เนื้อสัตว์ / ของแห้ง' }),
       inputField('หน่วยนับ', 'itemForm', 'unit', { placeholder: 'ลัง / แพ็ค / ถุง' }),
@@ -57,7 +63,10 @@ function itemForm(state) {
       el('div', { class: 'field field--action', style: { flexDirection: 'row', gap: '8px' } },
         el('button', {
           class: 'btn btn--primary btn--block', text: editing ? 'บันทึกการแก้ไข' : 'เพิ่มวัตถุดิบ',
-          onClick: () => store.addItem()
+          onClick: () => {
+            if (editing && !confirmAction(`ยืนยันบันทึกการแก้ไขวัตถุดิบ ${editing}?`)) return;
+            store.addItem();
+          }
         }),
         when(editing, () => el('button', { class: 'btn', text: 'ยกเลิก', onClick: () => store.cancelEditItem() }))
       )

@@ -79,7 +79,7 @@ create table recipes (
 
 create table recipe_lines (
   recipe_id text not null references recipes(id) on delete cascade,
-  item_code text not null references items(code),
+  item_code text not null references items(code) on update cascade,
   qty       numeric not null,        -- kg of this ingredient per unit of output
   primary key (recipe_id, item_code)
 );
@@ -90,7 +90,7 @@ create table recipe_lines (
 create table lots (
   id              text primary key,  -- 'LOT-260819-01'
   branch_id       text not null references branches(id),
-  item_code       text not null references items(code),
+  item_code       text not null references items(code) on update cascade,
   supplier_id     text references suppliers(id),
   buyer           text,
   recv_date       date not null,
@@ -117,7 +117,7 @@ create table moves (
                                       -- multi-lot issue splits into several rows sharing a doc_no)
   branch_id    text not null references branches(id),
   lot_id       text not null references lots(id),
-  item_code    text not null references items(code),
+  item_code    text not null references items(code) on update cascade,
   type         text not null check (type in ('รับเข้า', 'เบิกออก', 'ตัดทิ้ง')),
   move_date    date not null,
   move_time    time not null,

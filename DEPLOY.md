@@ -96,3 +96,17 @@ until at least one exists.
 If you change the schema (re-running `db/schema.sql` after an edit), remember
 it's DROP-then-CREATE — anything already stored in those tables is deleted
 first.
+
+**Editing exists now, for suppliers, items, branches, and receiving records** —
+an "แก้ไข" button on each table row. Every edit save asks for Yes/No
+confirmation first.
+
+Item codes can now be renamed too. That needed a one-time database change:
+`items.code` is referenced by `lots`, `moves` and `recipe_lines`, and without
+`ON UPDATE CASCADE` a rename fails with a foreign key error the moment the
+item has any receiving/issue/recipe history — exactly when you'd want to
+rename it. **Run [`db/migrations/001_item_code_on_update_cascade.sql`](migrations/001_item_code_on_update_cascade.sql)
+once in the Supabase SQL Editor** (safe — it only replaces constraint
+definitions, no data is touched) before renaming an item that already has
+lots against it. A brand-new project doesn't need this: `db/schema.sql`
+already includes the cascade for anyone setting up from scratch.

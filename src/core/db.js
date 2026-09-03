@@ -193,13 +193,20 @@ export async function insertItem(item, mainSupplierId) {
   }), 'เพิ่มวัตถุดิบ');
 }
 
-export async function updateItem(code, item, mainSupplierId) {
+/**
+ * `newCode` may differ from `oldCode` — items.code is the primary key, and
+ * lots/moves/recipe_lines reference it with ON UPDATE CASCADE (see
+ * db/migrations/001_item_code_on_update_cascade.sql), so renaming it here
+ * renames it everywhere it's used too.
+ */
+export async function updateItem(oldCode, newCode, item, mainSupplierId) {
   must(await supabase.from('items').update({
+    code: newCode,
     name: item.name, category: item.category, unit: item.unit,
     weight_per_unit: item.weightPerUnit, shelf_life: item.shelfLife,
     min_stock: item.minStock, storage: item.storage,
     main_supplier_id: mainSupplierId || null
-  }).eq('code', code), 'แก้ไขวัตถุดิบ');
+  }).eq('code', oldCode), 'แก้ไขวัตถุดิบ');
 }
 
 export async function insertRecipe(recipe) {

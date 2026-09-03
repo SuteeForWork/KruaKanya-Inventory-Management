@@ -351,14 +351,28 @@ class Store {
     };
 
     if (this.state.editingItem) {
-      const code = this.state.editingItem;
-      const ok = await this.persist('แก้ไขวัตถุดิบ', () => db.updateItem(code, patch, this.supplierIdByName(f.mainSupplier)));
+      const oldCode = this.state.editingItem;
+      const newCode = f.code;
+      if (newCode !== oldCode && this.state.items.some(i => i.code === newCode)) {
+        this.say(`รหัส ${newCode} มีอยู่แล้วในระบบ`, true);
+        return;
+      }
+      const ok = await this.persist('แก้ไขวัตถุดิบ', () => db.updateItem(oldCode, newCode, patch, this.supplierIdByName(f.mainSupplier)));
       if (!ok) return;
       this.set(s => ({
-        items: s.items.map(i => (i.code === code ? { ...i, ...patch } : i)),
+        items: s.items.map(i => (i.code === oldCode ? { ...i, code: newCode, ...patch } : i)),
+        // The DB cascades the rename to everything that referenced the old
+        // code (ON UPDATE CASCADE) — mirror that locally so lots/moves/
+        // recipes don't show a stale code until the next reload.
+        lots: s.lots.map(l => (l.code === oldCode ? { ...l, code: newCode } : l)),
+        moves: s.moves.map(m => (m.code === oldCode ? { ...m, code: newCode } : m)),
+        recipes: s.recipes.map(r => ({
+          ...r,
+          lines: r.lines.map(l => (l.code === oldCode ? { ...l, code: newCode } : l))
+        })),
         editingItem: null, itemForm: blankItem()
       }));
-      this.say(`แก้ไขวัตถุดิบ ${code} เรียบร้อย`);
+      this.say(`แก้ไขวัตถุดิบ ${oldCode}${newCode !== oldCode ? ' → ' + newCode : ''} เรียบร้อย`);
       return;
     }
 

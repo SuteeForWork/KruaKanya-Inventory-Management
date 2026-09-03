@@ -169,3 +169,6 @@ export const button = (label, onClick, opts = {}) => el('button', {
 /** Ledger row type → status tone. */
 export const moveTone = type =>
   type === 'รับเข้า' ? 'ok' : type === 'ตัดทิ้ง' ? 'danger' : 'warn';
+
+/** Native Yes/No prompt gating a save — used only for editing existing rows, not adding new ones. */
+export const confirmAction = message => window.confirm(message);
