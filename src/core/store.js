@@ -34,6 +34,36 @@ export const MOVE_FILTERS = ['ทั้งหมด', 'รับเข้า', '
 const TRANSFER_PURPOSE = 'เบิกโอนสาขา';
 const WASTE_PURPOSE = 'ตัดทิ้ง/ของเสีย';
 
+/**
+ * Session persistence — without this, `state.auth` lives only in memory and
+ * every refresh drops back to the login screen. `localStorage` survives a
+ * refresh (and a closed tab), which is what "stay logged in" means for a
+ * shared-computer app with no server-side session anyway: this stores
+ * exactly the same `{ role, branch, fullName, id? }` shape completeLogin()
+ * already keeps in state, nothing more sensitive than that (never a
+ * password). Wrapped in try/catch since localStorage can throw in private
+ * browsing / storage-disabled contexts — login still works, it just won't
+ * survive a refresh there.
+ */
+const AUTH_STORAGE_KEY = 'kruakanya.auth';
+
+function loadStoredAuth() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredAuth(account) {
+  try { localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(account)); } catch { /* ignore */ }
+}
+
+function clearStoredAuth() {
+  try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch { /* ignore */ }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Blank forms                                                                 */
 /* -------------------------------------------------------------------------- */
@@ -89,13 +119,17 @@ class Store {
     this.toastTimer = null;
     this.persisted = db.isConfigured;
 
+    // Restore a session across a refresh — see the note on AUTH_STORAGE_KEY.
+    const restoredAuth = loadStoredAuth();
+    const perms = defaultPerms();
+
     this.state = {
       ...data,
-      view: 'dash',
-      auth: null,
-      role: 'admin',
-      perms: defaultPerms(),
-      branch: ALL_BRANCHES,
+      view: restoredAuth ? firstViewFor(perms, restoredAuth.role) : 'dash',
+      auth: restoredAuth,
+      role: restoredAuth ? restoredAuth.role : 'admin',
+      perms,
+      branch: restoredAuth ? (restoredAuth.branch || ALL_BRANCHES) : ALL_BRANCHES,
       search: '',
       moveFilter: MOVE_FILTERS[0],
       toast: null,
@@ -162,6 +196,14 @@ class Store {
       setRoles(await db.getRoles());
       this.set({});
     } catch { /* migration 005 not run yet — keep the built-in roles */ }
+
+    // A restored session (see loadStoredAuth) could belong to a role an
+    // admin deleted while this browser was away — log it out cleanly rather
+    // than leave it showing a role that no longer exists anywhere.
+    if (this.state.auth && !ROLES.some(r => r.key === this.state.auth.role)) {
+      this.logout();
+      this.say('บทบาทของบัญชีนี้ถูกลบไปแล้ว กรุณาเข้าสู่ระบบใหม่', true);
+    }
   }
 
   /* ---- plumbing --------------------------------------------------------- */
@@ -293,17 +335,27 @@ class Store {
 
   completeLogin(account) {
     const role = roleByKey(account.role);
+    // Never let credentials into state.auth — the hardcoded admin ACCOUNTS
+    // entry carries `pass` (and `user`), and this object gets persisted to
+    // localStorage for session restore. Keep only what the UI actually
+    // reads: role, branch, fullName, id.
+    const session = {
+      role: account.role, branch: account.branch || ALL_BRANCHES,
+      fullName: account.fullName, id: account.id
+    };
+    saveStoredAuth(session);
     this.set({
-      auth: account,
-      role: account.role,
-      view: firstViewFor(this.state.perms, account.role),
-      branch: account.branch || ALL_BRANCHES,
+      auth: session,
+      role: session.role,
+      view: firstViewFor(this.state.perms, session.role),
+      branch: session.branch,
       loginForm: { user: '', pass: '', error: '' }
     });
-    this.say(`เข้าสู่ระบบเป็น ${account.fullName || role.person} · ${role.label} · ${this.branchLabel(account.branch || ALL_BRANCHES)}`);
+    this.say(`เข้าสู่ระบบเป็น ${session.fullName || role.person} · ${role.label} · ${this.branchLabel(session.branch)}`);
   }
 
   logout() {
+    clearStoredAuth();
     this.set({
       auth: null, loginForm: { user: '', pass: '', error: '' }, loginPanel: 'login',
       // Drop the roster from memory — it's PII, no reason to keep it around
