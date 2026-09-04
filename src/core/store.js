@@ -831,6 +831,57 @@ class Store {
     this.say(`แก้ไข ${id} เรียบร้อย`);
   }
 
+  /** Nothing may have been drawn from the lot yet, admin or not — deleting a
+   *  partially-issued lot would orphan the issue/transfer moves that already
+   *  drew stock from it (same rule saveLotEdit enforces for shrinking one). */
+  lotDeletable(lot) {
+    if (lot.qtyIn !== lot.qtyLeft) {
+      this.say(`ลบไม่ได้ — ล็อต ${lot.id} ถูกเบิก/โอนออกไปแล้ว ${n(lot.qtyIn - lot.qtyLeft)} หน่วย`, true);
+      return false;
+    }
+    return true;
+  }
+
+  /** Admin-only, immediate — also the final step once a request is approved. */
+  async deleteLot(id) {
+    if (!this.isAdmin()) return;
+    const lot = this.state.lots.find(l => l.id === id);
+    if (!lot || !this.lotDeletable(lot)) return;
+
+    const ok = await this.persist('ลบรายการรับเข้า', () => db.deleteLot(id));
+    if (!ok) return;
+    this.set(s => ({ lots: s.lots.filter(l => l.id !== id), moves: s.moves.filter(m => m.lotId !== id) }));
+    this.say(`ลบ ${id} เรียบร้อย`);
+  }
+
+  /** Admin deletes right away; anyone else who can edit "รับเข้า" only flags
+   *  the lot for approval — see approveDeleteLot / rejectDeleteLot below. */
+  async requestDeleteLot(id) {
+    if (!this.guard('receive')) return;
+    if (this.isAdmin()) { await this.deleteLot(id); return; }
+
+    const lot = this.state.lots.find(l => l.id === id);
+    if (!lot || !this.lotDeletable(lot)) return;
+
+    const ok = await this.persist('ขอลบรายการรับเข้า', () => db.setLotPendingDelete(id, true));
+    if (!ok) return;
+    this.set(s => ({ lots: s.lots.map(l => (l.id === id ? { ...l, pendingDelete: true } : l)) }));
+    this.say(`ส่งคำขอลบ ${id} แล้ว — รอผู้ดูแลระบบอนุมัติ`);
+  }
+
+  async approveDeleteLot(id) {
+    if (!this.isAdmin()) return;
+    await this.deleteLot(id);
+  }
+
+  async rejectDeleteLot(id) {
+    if (!this.isAdmin()) return;
+    const ok = await this.persist('ปฏิเสธคำขอลบ', () => db.setLotPendingDelete(id, false));
+    if (!ok) return;
+    this.set(s => ({ lots: s.lots.map(l => (l.id === id ? { ...l, pendingDelete: false } : l)) }));
+    this.say('ปฏิเสธคำขอลบแล้ว');
+  }
+
   async submitReceive() {
     if (!this.guard('receive') || !this.requireBranch()) return;
 

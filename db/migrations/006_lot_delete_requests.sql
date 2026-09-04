@@ -1,0 +1,22 @@
+-- ==========================================================================
+-- Migration 006 — deleting a receiving record (lot), gated by role
+--
+-- Admin can delete a lot outright. Everyone else who can edit "รับเข้า"
+-- (purchasing, by default) can only request a delete — the row is flagged
+-- pending_delete and shows as "รออนุมัติ" until admin approves (deletes it
+-- for real) or rejects (clears the flag). See store.js#deleteLot /
+-- requestDeleteLot / approveDeleteLot / rejectDeleteLot.
+--
+-- A lot can only be deleted (or have deletion requested) while nothing has
+-- been drawn from it yet (qty_left = qty_in) — same rule saveLotEdit already
+-- enforces for shrinking a lot's quantity, so deleting one never orphans an
+-- issue/transfer move that already drew stock from it.
+--
+-- `lots` already has "open access" RLS (see db/schema.sql) — a plain column
+-- and a plain client-side update/delete is enough, no RPC needed.
+--
+-- Safe to run against a live database: adds one column, touches nothing
+-- existing. Safe to re-run too.
+-- ==========================================================================
+
+alter table lots add column if not exists pending_delete boolean not null default false;

@@ -107,7 +107,8 @@ create table lots (
   qty_in          numeric not null,
   qty_left        numeric not null check (qty_left >= 0),
   price_per_unit  numeric not null,
-  ref             text               -- PO / delivery note number
+  ref             text,              -- PO / delivery note number
+  pending_delete  boolean not null default false  -- true while a non-admin's delete request awaits admin approval
 );
 
 create index lots_branch_item_idx on lots (branch_id, item_code) where qty_left > 0;

@@ -63,7 +63,8 @@ const toLot = row => ({
   supplier: row.suppliers ? row.suppliers.name : '-',
   buyer: row.buyer, recvDate: row.recv_date, recvTime: hm(row.recv_time),
   mfgDate: row.mfg_date, qtyIn: num(row.qty_in), qtyLeft: num(row.qty_left),
-  pricePerUnit: num(row.price_per_unit), ref: row.ref
+  pricePerUnit: num(row.price_per_unit), ref: row.ref,
+  pendingDelete: Boolean(row.pending_delete)
 });
 
 const toMove = row => ({
@@ -257,6 +258,21 @@ export async function updateLot(lotId, patch, supplierId) {
     qty_in: patch.qtyIn, qty_left: patch.qtyLeft, price_per_unit: patch.pricePerUnit,
     ref: patch.ref
   }).eq('id', lotId), 'แก้ไขรายการรับเข้า');
+}
+
+/** Flags (or clears) a non-admin's request to delete a receiving record. */
+export async function setLotPendingDelete(lotId, pending) {
+  must(await supabase.from('lots').update({ pending_delete: pending }).eq('id', lotId), 'ปรับสถานะคำขอลบ');
+}
+
+/**
+ * Deletes a receiving record for good — only ever called once store.js has
+ * confirmed nothing has been drawn from the lot yet (qty_left = qty_in), so
+ * the only move left referencing it is its own receiving entry.
+ */
+export async function deleteLot(lotId) {
+  must(await supabase.from('moves').delete().eq('lot_id', lotId), 'ลบรายการเคลื่อนไหวของล็อต');
+  must(await supabase.from('lots').delete().eq('id', lotId), 'ลบรายการรับเข้า');
 }
 
 /** A branch transfer also lands as a brand-new lot at the destination. */
