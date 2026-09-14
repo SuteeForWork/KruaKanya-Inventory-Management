@@ -2,19 +2,26 @@
 
 import { el, when } from '../dom.js';
 import {
-  badge, card, fieldGrid, inputField, selectField,
+  badge, card, confirmAction, fieldGrid, inputField, selectField,
   table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store, PURPOSES } from '../../core/store.js';
-import { baht, kg, n, shortDate } from '../../core/format.js';
+import { baht, fullDateTime, kg, n, shortDate } from '../../core/format.js';
 import {
   ALL_BRANCHES, ageLeftOf, allocate, expiryOf, sortedMoves, stockByItem
 } from '../../core/inventory.js';
 
-const HEAD = [
-  'เลขที่เอกสาร', 'วันที่-เวลา', 'วัตถุดิบ / ล็อต', 'จำนวนเบิก|R', 'น้ำหนัก (กก.)|R',
-  'อายุคงเหลือ (วัน)|R', 'ผู้เบิกออก', 'ราคาที่เบิกออก|R', 'ประเภท'
-];
+/** The raw-computer-clock column is an audit check against backdating —
+ *  only admin sees it, everyone else only sees the editable business date. */
+function head(isAdmin) {
+  const cols = [
+    'เลขที่เอกสาร', 'วันที่-เวลา', 'วัตถุดิบ / ล็อต', 'จำนวนเบิก|R', 'น้ำหนัก (กก.)|R',
+    'อายุคงเหลือ (วัน)|R', 'ผู้เบิกออก', 'ราคาที่เบิกออก|R', 'ประเภท', 'แก้ไขล่าสุด'
+  ];
+  if (isAdmin) cols.push('เวลาบันทึกจริง (ระบบ)');
+  cols.push('');
+  return cols;
+}
 
 function issueForm(state) {
   const f = state.issueForm;
@@ -31,6 +38,8 @@ function issueForm(state) {
     fieldGrid('sm',
       selectField('รหัส / ชื่อวัตถุดิบ', 'issueForm', 'code', stockOptions, { placeholder: '— เลือกวัตถุดิบ —' }),
       inputField('จำนวนที่เบิกออก (หน่วย)', 'issueForm', 'qty', { type: 'number', placeholder: '5', mono: true }),
+      inputField('วันที่เบิกออก', 'issueForm', 'date', { type: 'date' }),
+      inputField('เวลาที่เบิกออก', 'issueForm', 'time', { type: 'time' }),
       inputField('ชื่อผู้เบิกออก', 'issueForm', 'issuer', { placeholder: 'เช่น เชฟกวิน ร.' }),
       selectField('ประเภทการเบิก', 'issueForm', 'purpose', PURPOSES.map(v => ({ value: v, label: v }))),
       when(f.purpose === 'เบิกโอนสาขา', () =>
@@ -98,21 +107,75 @@ function recapRow(label, value, valueClass) {
   );
 }
 
+/** The "วันที่-เวลา" cell: plain text, or an inline date+time edit when this
+ *  doc is the one being corrected — every row sharing its doc_no flips into
+ *  edit mode together, since they're one real-world issue split across lots.
+ *  That means several rows can render these inputs at once, so the
+ *  data-bind key is suffixed with the doc number — app.js's focus restore
+ *  after re-render does a plain querySelector on that attribute, and two
+ *  identical values would always resolve to the first row's input. */
+function dateTimeCell(state, m) {
+  if (state.editingMoveDoc !== m.id) {
+    return tdCode(`${shortDate(m.date)} ${m.time}`);
+  }
+  return td(
+    el('div', { class: 'row', style: { gap: '6px' } },
+      el('input', {
+        type: 'date', value: state.editMoveDate, style: { minWidth: '130px' },
+        'data-bind': `editMoveDate:${m.id}`,
+        onInput: e => store.setEditMoveDate(e.target.value)
+      }),
+      el('input', {
+        type: 'time', value: state.editMoveTime, style: { minWidth: '90px' },
+        'data-bind': `editMoveTime:${m.id}`,
+        onInput: e => store.setEditMoveTime(e.target.value)
+      })
+    )
+  );
+}
+
+function actionsCell(state, m) {
+  if (!store.canEdit('issue')) return null;
+
+  if (state.editingMoveDoc === m.id) {
+    return td(
+      el('div', { class: 'row', style: { gap: '6px' } },
+        el('button', {
+          class: 'btn btn--small', text: 'บันทึก',
+          onClick: () => {
+            const msg = `ยืนยันแก้ไขวันที่-เวลาของ ${m.id} เป็น ${shortDate(state.editMoveDate)} ${state.editMoveTime}?`;
+            if (confirmAction(msg)) store.saveMoveDateTime();
+          }
+        }),
+        el('button', { class: 'btn btn--small', text: 'ยกเลิก', onClick: () => store.cancelEditMoveDateTime() })
+      )
+    );
+  }
+  return td(el('button', { class: 'btn btn--small', text: 'แก้ไข', onClick: () => store.startEditMoveDateTime(m.id) }));
+}
+
 function historyRows(state) {
+  const isAdmin = store.isAdmin();
   return sortedMoves(state)
     .filter(m => m.type !== 'รับเข้า')
     .filter(m => store.matches(m.name, m.code, m.id, m.user, m.lotId))
-    .map(m => tr(
-      tdCode(m.id),
-      tdCode(`${shortDate(m.date)} ${m.time}`),
-      tdTitled(m.name, `${m.code} · ${m.lotId}`),
-      tdNum(n(m.qty)),
-      tdNum(n(m.weight, 1)),
-      tdNum(m.age === undefined ? '—' : n(m.age)),
-      td(m.user),
-      tdNum(baht(m.cost)),
-      td(badge(m.purpose || '-', m.type === 'ตัดทิ้ง' ? 'danger' : 'watch', { plain: true }))
-    ));
+    .map(m => {
+      const cells = [
+        tdCode(m.id),
+        dateTimeCell(state, m),
+        tdTitled(m.name, `${m.code} · ${m.lotId}`),
+        tdNum(n(m.qty)),
+        tdNum(n(m.weight, 1)),
+        tdNum(m.age === undefined ? '—' : n(m.age)),
+        td(m.user),
+        tdNum(baht(m.cost)),
+        td(badge(m.purpose || '-', m.type === 'ตัดทิ้ง' ? 'danger' : 'watch', { plain: true })),
+        tdCode(m.editedAt ? fullDateTime(m.editedAt) : '—')
+      ];
+      if (isAdmin) cells.push(tdCode(m.createdAt ? fullDateTime(m.createdAt) : '—'));
+      cells.push(actionsCell(state, m));
+      return tr(...cells);
+    });
 }
 
 export function issueView() {
@@ -124,6 +187,6 @@ export function issueView() {
     when(store.canEdit('issue'), () =>
       el('div', { class: 'grid-split--issue', 'data-print': 'hide', style: { display: 'grid' } },
         issueForm(state), allocationPanel(state))),
-    card({ title: `ประวัติการเบิกออก (${issued} รายการ)` }, table(HEAD, historyRows(state)))
+    card({ title: `ประวัติการเบิกออก (${issued} รายการ)` }, table(head(store.isAdmin()), historyRows(state)))
   );
 }

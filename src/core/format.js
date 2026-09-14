@@ -50,3 +50,14 @@ export function toISODate(d) {
 export function clockTime() {
   return new Date().toTimeString().slice(0, 5);
 }
+
+/** A `timestamptz` (or any parseable ISO string) → 'DD/MM/YY HH:MM' in local time. */
+export function fullDateTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return String(d.getDate()).padStart(2, '0') + '/' +
+         String(d.getMonth() + 1).padStart(2, '0') + '/' +
+         String(d.getFullYear() % 100) + ' ' +
+         String(d.getHours()).padStart(2, '0') + ':' +
+         String(d.getMinutes()).padStart(2, '0');
+}

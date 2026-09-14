@@ -73,7 +73,8 @@ const toMove = row => ({
   date: row.move_date, time: hm(row.move_time),
   qty: num(row.qty), weight: num(row.weight), cost: num(row.cost),
   user: row.staff_name, purpose: row.purpose, note: row.note,
-  age: row.age_left_days === null ? undefined : row.age_left_days
+  age: row.age_left_days === null ? undefined : row.age_left_days,
+  createdAt: row.created_at, editedAt: row.edited_at
 });
 
 const toOutput = row => ({
@@ -243,6 +244,20 @@ export async function insertMoves(moves) {
     purpose: m.purpose, note: m.note,
     age_left_days: m.age === undefined ? null : m.age
   }))), 'บันทึกรายการเคลื่อนไหว');
+}
+
+/**
+ * Corrects the business date/time of an already-recorded issue — every
+ * moves row sharing this doc_no is one real-world transaction (a single
+ * issue can split across several lots under FEFO), so they're corrected
+ * together. `edited_at` is stamped with the browser's clock, same as every
+ * other timestamp this app already records client-side; `created_at` is
+ * never touched here — see db/migrations/007_move_datetime_audit.sql.
+ */
+export async function updateMoveDateTime(docNo, date, time) {
+  must(await supabase.from('moves').update({
+    move_date: date, move_time: time, edited_at: new Date().toISOString()
+  }).eq('doc_no', docNo), 'แก้ไขวันที่-เวลา');
 }
 
 export async function updateLotQtyLeft(lotId, qtyLeft) {

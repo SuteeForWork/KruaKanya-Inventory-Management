@@ -13,7 +13,7 @@
 
 import { seed } from '../data/seed.js';
 import { config, today } from '../config.js';
-import { clockTime, kg, baht, n } from './format.js';
+import { clockTime, kg, baht, n, toISODate } from './format.js';
 import {
   ALL_BRANCHES, allocate, ageLeftOf, branchName, inBranch, issuedOn
 } from './inventory.js';
@@ -74,8 +74,14 @@ const blankReceive = () => ({
   qtyIn: '', weightPerUnit: '', pricePerUnit: '', ref: ''
 });
 
+/**
+ * date/time default to the browser's real clock, not today() — today()
+ * follows config.businessDate, which is pinned to a fixed date and is
+ * exactly the "wrong date" bug this field exists to let someone correct.
+ */
 const blankIssue = () => ({
-  code: '', qty: '', issuer: '', purpose: 'เบิกผลิต', note: '', dest: ''
+  code: '', qty: '', issuer: '', purpose: 'เบิกผลิต', note: '', dest: '',
+  date: toISODate(new Date()), time: clockTime()
 });
 
 const blankOutput = () => ({
@@ -167,7 +173,12 @@ class Store {
       editingLot: null,
       editingSupplier: null,
       editingBranch: null,
-      editingItem: null
+      editingItem: null,
+      // Which issue doc's date/time is being corrected, plus its drafts —
+      // see saveMoveDateTime().
+      editingMoveDoc: null,
+      editMoveDate: '',
+      editMoveTime: ''
     };
   }
 
@@ -945,9 +956,10 @@ class Store {
       return;
     }
 
-    const datePrefix = today().slice(2).replace(/-/g, '');
+    const date = f.date || toISODate(new Date());
+    const time = f.time || clockTime();
+    const datePrefix = date.slice(2).replace(/-/g, '');
     const doc = `IS-${datePrefix}-` + this.nextIssueSeq(datePrefix);
-    const time = clockTime();
     const isWaste = f.purpose === WASTE_PURPOSE;
     const from = this.state.branch;
     const isTransfer = f.purpose === TRANSFER_PURPOSE && f.dest && f.dest !== from;
@@ -963,7 +975,7 @@ class Store {
       id: doc + (plan.rows.length > 1 ? '-' + (i + 1) : ''),
       type: isWaste ? 'ตัดทิ้ง' : 'เบิกออก',
       lotId: r.lot.id, code: r.lot.code, name: r.lot.name,
-      date: today(), time, qty: r.take,
+      date, time, qty: r.take,
       weight: r.take * r.lot.weightPerUnit,
       cost: r.take * r.lot.pricePerUnit,
       user: f.issuer || '-', purpose: f.purpose,
@@ -981,12 +993,12 @@ class Store {
         transferLots.push({
           ...r.lot, id, branch: f.dest,
           qtyIn: r.take, qtyLeft: r.take,
-          recvDate: today(), recvTime: time, ref: doc
+          recvDate: date, recvTime: time, ref: doc
         });
         transferMoves.push({
           branch: f.dest, id: 'RC-' + id.slice(4), type: 'รับเข้า',
           lotId: id, code: r.lot.code, name: r.lot.name,
-          date: today(), time, qty: r.take,
+          date, time, qty: r.take,
           weight: r.take * r.lot.weightPerUnit,
           cost: r.take * r.lot.pricePerUnit,
           user: f.issuer || '-', purpose: 'รับโอนระหว่างสาขา',
@@ -1010,13 +1022,51 @@ class Store {
     this.set(s => ({
       lots: lots.concat(transferLots),
       moves: s.moves.concat(issueMoves, transferMoves),
-      issueForm: { ...f, qty: '', note: '' }
+      issueForm: { ...f, qty: '', note: '', date: toISODate(new Date()), time: clockTime() }
     }));
 
     const tail = isTransfer
       ? ` · โอนเข้า ${this.branchLabel(f.dest)} แล้ว`
       : ` ตัดจาก ${issueMoves.length} ล็อต`;
     this.say(`${doc} · ${issueMoves[0].name} ${n(qty)} หน่วย (${kg(totalWeight)}) ต้นทุน ${baht(totalCost)}${tail}`);
+  }
+
+  /**
+   * Corrects the business date/time already recorded for an issue. `docNo`
+   * may cover several moves rows at once — a single issue can split across
+   * multiple lots under FEFO, and those rows are all one real-world event,
+   * so they're corrected together (see db.js#updateMoveDateTime).
+   */
+  startEditMoveDateTime(docNo) {
+    if (!this.guard('issue')) return;
+    const move = this.state.moves.find(m => m.id === docNo);
+    if (!move) return;
+    this.set({ editingMoveDoc: docNo, editMoveDate: move.date, editMoveTime: move.time });
+  }
+
+  cancelEditMoveDateTime() {
+    this.set({ editingMoveDoc: null, editMoveDate: '', editMoveTime: '' });
+  }
+
+  setEditMoveDate(value) { this.set({ editMoveDate: value }); }
+  setEditMoveTime(value) { this.set({ editMoveTime: value }); }
+
+  async saveMoveDateTime() {
+    if (!this.guard('issue')) return;
+    const docNo = this.state.editingMoveDoc;
+    const date = this.state.editMoveDate;
+    const time = this.state.editMoveTime;
+    if (!date || !time) { this.say('กรอกวันที่และเวลาให้ครบ', true); return; }
+
+    const ok = await this.persist('แก้ไขวันที่-เวลาเบิกออก', () => db.updateMoveDateTime(docNo, date, time));
+    if (!ok) return;
+
+    const editedAt = new Date().toISOString();
+    this.set(s => ({
+      moves: s.moves.map(m => (m.id === docNo ? { ...m, date, time, editedAt } : m)),
+      editingMoveDoc: null, editMoveDate: '', editMoveTime: ''
+    }));
+    this.say(`แก้ไขวันที่-เวลาของ ${docNo} เรียบร้อย`);
   }
 
   /* ---- production output ------------------------------------------------ */

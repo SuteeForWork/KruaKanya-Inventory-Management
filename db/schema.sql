@@ -132,7 +132,9 @@ create table moves (
   staff_name   text,
   purpose      text,                 -- 'เบิกผลิต' | 'เบิกโอนสาขา' | 'เบิกทดลองสูตร' | 'ตัดทิ้ง/ของเสีย' | 'รับเข้าคลัง' | ...
   note         text,
-  age_left_days integer              -- shelf life remaining at the moment of issue; null for receipts
+  age_left_days integer,             -- shelf life remaining at the moment of issue; null for receipts
+  created_at   timestamptz not null default now(),  -- real wall-clock insert time, never edited — admin-only audit column
+  edited_at    timestamptz           -- set only when move_date/move_time is corrected after the fact; null = never edited
 );
 
 create index moves_branch_date_idx on moves (branch_id, move_date desc);
