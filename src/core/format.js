@@ -14,9 +14,24 @@ export function baht(value, decimals = 0) {
   return '฿' + n(value, decimals);
 }
 
-/** Kilograms, one decimal. */
+/** A kg amount as a plain number — one decimal normally, three for a
+ *  sub-1kg amount so a gram-scale item (e.g. 0.025 kg) doesn't round away
+ *  to "0.0". Table columns that already carry "(กก.)" in the header use
+ *  this directly; `kg()` below just adds the unit suffix. */
+export function kgNum(value) {
+  const x = Number(value) || 0;
+  return n(x, Math.abs(x) > 0 && Math.abs(x) < 1 ? 3 : 1);
+}
+
+/** Kilograms, with the unit suffix — see kgNum() for the decimal rule. */
 export function kg(value) {
-  return n(value, 1) + ' กก.';
+  return kgNum(value) + ' กก.';
+}
+
+/** A weight typed in 'g' or 'kg' → kg, the unit every stored weight uses. */
+export function toKg(value, unit) {
+  const x = Number(value) || 0;
+  return unit === 'g' ? x / 1000 : x;
 }
 
 /** Add days to a YYYY-MM-DD date, returning YYYY-MM-DD. */

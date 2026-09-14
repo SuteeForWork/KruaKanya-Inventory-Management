@@ -116,12 +116,16 @@ export function meter(pct, tone, { value = null, stacked = false, footnote = nul
  * re-render that every keystroke triggers.
  */
 export function inputField(label, form, field, opts = {}) {
-  const { type = 'text', placeholder = '', mono = false, variant = null, onInput = null, disabled = false } = opts;
+  const { type = 'text', placeholder = '', mono = false, variant = null, onInput = null, disabled = false, step = null } = opts;
   const control = el('input', {
     type,
     value: store.state[form][field] ?? '',
     placeholder,
     disabled,
+    // Without step="any", a lot of mobile keyboards drop the decimal-point
+    // key from a number input entirely — not just an arrow-button quirk.
+    step: type === 'number' ? (step || 'any') : null,
+    inputmode: type === 'number' ? 'decimal' : null,
     'data-bind': `${form}.${field}`,
     onInput: e => (onInput ? onInput(e.target.value) : store.setField(form, field, e.target.value))
   });

@@ -13,7 +13,7 @@
 
 import { seed } from '../data/seed.js';
 import { config, today } from '../config.js';
-import { clockTime, kg, baht, n, toISODate } from './format.js';
+import { clockTime, kg, baht, n, toISODate, toKg } from './format.js';
 import {
   ALL_BRANCHES, allocate, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn
 } from './inventory.js';
@@ -71,7 +71,7 @@ function clearStoredAuth() {
 const blankReceive = () => ({
   recvDate: today(), recvTime: '08:30', code: '', name: '', supplier: '',
   buyer: 'ณัฐพล ส.', mfgDate: '2026-08-25', shelfLife: '',
-  qtyIn: '', qtyLevel: 'base', weightPerUnit: '', pricePerUnit: '', ref: ''
+  qtyIn: '', qtyLevel: 'base', weightPerUnit: '', weightUnit: 'kg', pricePerUnit: '', ref: ''
 });
 
 /**
@@ -99,7 +99,7 @@ const blankSupplier = () => ({ name: '', category: '', contact: '', phone: '', t
 const blankBranch = () => ({ name: '', type: 'สาขาหน้าร้าน', manager: '', phone: '' });
 
 const blankItem = () => ({
-  code: '', name: '', category: '', unit: '', weightPerUnit: '',
+  code: '', name: '', category: '', unit: '', weightPerUnit: '', weightUnit: 'kg',
   shelfLife: '', minStock: '', storage: '', mainSupplier: '',
   trackBy: 'weight', packUnit: '', packSize: '', caseUnit: '', caseSize: ''
 });
@@ -660,7 +660,7 @@ class Store {
       editingItem: code,
       itemForm: {
         code: it.code, name: it.name, category: it.category === '-' ? '' : it.category, unit: it.unit,
-        weightPerUnit: String(it.weightPerUnit), shelfLife: String(it.shelfLife),
+        weightPerUnit: String(it.weightPerUnit), weightUnit: 'kg', shelfLife: String(it.shelfLife),
         minStock: String(it.minStock), storage: it.storage === '-' ? '' : it.storage,
         mainSupplier: it.mainSupplier || '',
         trackBy: it.trackBy || 'weight',
@@ -681,7 +681,8 @@ class Store {
     // A count-tracked item (e.g. instruction cards) isn't weighed at all —
     // weightPerUnit stays 0 and every weight-derived figure for it is 0 too,
     // which lowStock()/pricePerKg() in inventory.js already treat correctly.
-    const weightPerUnit = trackBy === 'count' ? 0 : (Number(f.weightPerUnit) || 0);
+    // Typed in g or kg (see the "หน่วยน้ำหนัก" toggle) — always stored in kg.
+    const weightPerUnit = trackBy === 'count' ? 0 : toKg(f.weightPerUnit, f.weightUnit);
     const shelfLife = Number(f.shelfLife) || 0;
     const minStock = Number(f.minStock) || 0;
     const packSize = Number(f.packSize) || 0;
@@ -758,6 +759,7 @@ class Store {
         code,
         name:          item ? item.name : s.receiveForm.name,
         weightPerUnit: item ? String(item.weightPerUnit) : s.receiveForm.weightPerUnit,
+        weightUnit:    'kg',
         shelfLife:     item ? String(item.shelfLife) : s.receiveForm.shelfLife,
         supplier:      item && !s.receiveForm.supplier ? item.mainSupplier : s.receiveForm.supplier,
         qtyLevel: 'base'
@@ -806,7 +808,7 @@ class Store {
         recvDate: lot.recvDate, recvTime: lot.recvTime, code: lot.code, name: lot.name,
         supplier: lot.supplier === '-' ? '' : lot.supplier, buyer: lot.buyer === '-' ? '' : lot.buyer,
         mfgDate: lot.mfgDate, shelfLife: String(lot.shelfLife),
-        qtyIn: String(lot.qtyIn), weightPerUnit: String(lot.weightPerUnit),
+        qtyIn: String(lot.qtyIn), weightPerUnit: String(lot.weightPerUnit), weightUnit: 'kg',
         pricePerUnit: String(lot.pricePerUnit), ref: lot.ref === '-' ? '' : lot.ref
       }
     });
@@ -834,7 +836,7 @@ class Store {
     const item = this.state.items.find(i => i.code === original.code);
     const isCount = item && item.trackBy === 'count';
     const qtyIn = Number(f.qtyIn) || 0;
-    const weightPerUnit = isCount ? 0 : (Number(f.weightPerUnit) || 0);
+    const weightPerUnit = isCount ? 0 : toKg(f.weightPerUnit, f.weightUnit);
     const pricePerUnit = Number(f.pricePerUnit) || 0;
     const shelfLife = Number(f.shelfLife) || 0;
 
@@ -928,7 +930,8 @@ class Store {
     // always in the item's base unit.
     const qty = item ? baseQtyFor(item, f.qtyIn, f.qtyLevel) : (Number(f.qtyIn) || 0);
     const isCount = item && item.trackBy === 'count';
-    const weightPerUnit = isCount ? 0 : (Number(f.weightPerUnit) || (item ? item.weightPerUnit : 0));
+    // Typed in g or kg (see the "หน่วยน้ำหนัก" toggle) — always stored in kg.
+    const weightPerUnit = isCount ? 0 : (f.weightPerUnit ? toKg(f.weightPerUnit, f.weightUnit) : (item ? item.weightPerUnit : 0));
     const pricePerUnit = Number(f.pricePerUnit) || 0;
     const shelfLife = Number(f.shelfLife) || (item ? item.shelfLife : 0);
 

@@ -6,8 +6,10 @@ import {
   submitRow, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
-import { addDays, baht, kg, n, shortDate } from '../../core/format.js';
+import { addDays, baht, kg, kgNum, n, shortDate, toKg } from '../../core/format.js';
 import { baseQtyFor, expiryOf, scopedLots, unitLevels } from '../../core/inventory.js';
+
+const WEIGHT_UNIT_OPTIONS = [{ value: 'kg', label: 'กก.' }, { value: 'g', label: 'ก.' }];
 
 const HEAD = [
   'ล็อต', 'วันที่-เวลารับเข้า', 'วัตถุดิบ', 'ซัพพลายเออร์', 'ผู้จัดซื้อ', 'วันที่ผลิต',
@@ -21,7 +23,7 @@ function preview(state) {
   const item = state.items.find(i => i.code === f.code);
   const isCount = item && item.trackBy === 'count';
   const qty = item ? baseQtyFor(item, f.qtyIn, f.qtyLevel) : (Number(f.qtyIn) || 0);
-  const weightPerUnit = isCount ? 0 : (Number(f.weightPerUnit) || (item ? item.weightPerUnit : 0));
+  const weightPerUnit = isCount ? 0 : (f.weightPerUnit ? toKg(f.weightPerUnit, f.weightUnit) : (item ? item.weightPerUnit : 0));
   const pricePerUnit = Number(f.pricePerUnit) || 0;
   const shelfLife = Number(f.shelfLife) || (item ? item.shelfLife : 0);
 
@@ -79,7 +81,8 @@ function form(state) {
         'receiveForm', 'qtyIn', { type: 'number', placeholder: '20', mono: true }
       ),
       when(!isCount, () =>
-        inputField('น้ำหนักต่อ 1 หน่วย (กก.)', 'receiveForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true })),
+        inputField('น้ำหนักต่อ 1 หน่วย', 'receiveForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true })),
+      when(!isCount, () => selectField('หน่วยน้ำหนัก', 'receiveForm', 'weightUnit', WEIGHT_UNIT_OPTIONS)),
       inputField(`ราคา ณ วันรับเข้า (บาท/${item ? item.unit : 'หน่วย'})`, 'receiveForm', 'pricePerUnit', { type: 'number', placeholder: '145', mono: true }),
       inputField('เลขที่ใบส่งของ / PO', 'receiveForm', 'ref', { placeholder: 'PO-2608-0xx', mono: true })
     ),
@@ -123,8 +126,8 @@ function historyRows(state) {
         tdNum(n(l.shelfLife)),
         tdCode(shortDate(expiryOf(l))),
         tdNum(`${n(l.qtyIn)} ${l.unit}`),
-        tdNum(isCount ? '—' : n(l.qtyIn * l.weightPerUnit, 1)),
-        tdNum(isCount ? '—' : n(l.weightPerUnit, 1)),
+        tdNum(isCount ? '—' : kgNum(l.qtyIn * l.weightPerUnit)),
+        tdNum(isCount ? '—' : kgNum(l.weightPerUnit)),
         tdNum(baht(l.pricePerUnit)),
         tdNum(baht(l.qtyIn * l.pricePerUnit)),
         td(rowActions(l))

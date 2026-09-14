@@ -6,7 +6,7 @@ import {
   table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
-import { baht, n } from '../../core/format.js';
+import { baht, kgNum, n } from '../../core/format.js';
 import { scopedMoves } from '../../core/inventory.js';
 
 const SUPPLIER_HEAD = [
@@ -23,6 +23,8 @@ const TRACK_BY_OPTIONS = [
   { value: 'weight', label: 'น้ำหนัก (กก.)' },
   { value: 'count', label: 'จำนวนชิ้น' }
 ];
+
+const WEIGHT_UNIT_OPTIONS = [{ value: 'kg', label: 'กก.' }, { value: 'g', label: 'ก.' }];
 
 function supplierForm(state) {
   const editing = state.editingSupplier;
@@ -64,7 +66,8 @@ function itemForm(state) {
       inputField('หน่วยนับ (หน่วยย่อยที่สุด)', 'itemForm', 'unit', { placeholder: 'ลัง / แพ็ค / ถุง / ใบ' }),
       selectField('นับสต๊อกแบบ', 'itemForm', 'trackBy', TRACK_BY_OPTIONS),
       when(!isCount, () =>
-        inputField('น้ำหนักต่อ 1 หน่วย (กก.)', 'itemForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true })),
+        inputField('น้ำหนักต่อ 1 หน่วย', 'itemForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true })),
+      when(!isCount, () => selectField('หน่วยน้ำหนัก', 'itemForm', 'weightUnit', WEIGHT_UNIT_OPTIONS)),
       inputField('อายุวัตถุดิบ (วัน)', 'itemForm', 'shelfLife', { type: 'number', placeholder: '7', mono: true }),
       inputField(
         isCount ? `ขั้นต่ำในคลัง (${f.unit || 'หน่วย'})` : 'ขั้นต่ำในคลัง (กก.)',
@@ -129,7 +132,7 @@ function itemRows(state) {
       td(i.category),
       td(i.packUnit ? `${i.unit} (${[i.packUnit, i.caseUnit].filter(Boolean).join(' / ')})` : i.unit),
       td(badge(i.trackBy === 'count' ? 'จำนวนชิ้น' : 'น้ำหนัก', i.trackBy === 'count' ? 'watch' : 'ok', { plain: true })),
-      tdNum(i.trackBy === 'count' ? '—' : n(i.weightPerUnit, 1)),
+      tdNum(i.trackBy === 'count' ? '—' : kgNum(i.weightPerUnit)),
       tdNum(n(i.shelfLife)),
       tdNum(`${n(i.minStock)}${i.trackBy === 'count' ? '' : ' กก.'}`),
       td(i.storage),
