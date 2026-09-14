@@ -40,17 +40,19 @@ function itemRows(state) {
     .filter(r => r.qtyLeft > 0)
     .filter(r => store.matches(r.item.name, r.item.code, r.item.category))
     .map(r => {
+      const isCount = r.item.trackBy === 'count';
       const status = statusOf(r.soonestExpiry === null ? 99 : r.soonestExpiry);
-      const pct = Math.min(100, Math.round((r.weightLeft / r.item.minStock) * 100));
+      const compareTo = isCount ? r.qtyLeft : r.weightLeft;
+      const pct = Math.min(100, Math.round((compareTo / r.item.minStock) * 100));
       const belowReorder = pct < 100;
 
       return tr(
         tdTitled(r.item.name, `${r.item.code} · ${r.item.category}`),
         tdNum(`${n(r.qtyLeft)} ${r.item.unit}`),
-        tdNum(n(r.weightLeft, 1)),
+        tdNum(isCount ? '—' : n(r.weightLeft, 1)),
         td(meter(pct, belowReorder ? 'warn' : 'ok', {
           stacked: true,
-          footnote: `ขั้นต่ำ ${n(r.item.minStock)} กก.`
+          footnote: `ขั้นต่ำ ${n(r.item.minStock)}${isCount ? ' ' + r.item.unit : ' กก.'}`
         })),
         tdNum(r.oldestInStore === null ? '—' : n(r.oldestInStore)),
         tdNum(r.soonestExpiry === null ? '—' : n(r.soonestExpiry)),
@@ -75,9 +77,9 @@ function lotRows(state) {
         tdCode(shortDate(expiryOf(l))),
         tdNum(n(days)),
         tdNum(`${n(l.qtyLeft)} ${l.unit}`),
-        tdNum(n(weightOf(l), 1)),
+        tdNum(l.weightPerUnit ? n(weightOf(l), 1) : '—'),
         tdNum(`${baht(l.pricePerUnit, 2)} / ${l.unit}`),
-        tdNum(`${baht(l.pricePerUnit / l.weightPerUnit, 2)} / กก.`),
+        tdNum(l.weightPerUnit ? `${baht(l.pricePerUnit / l.weightPerUnit, 2)} / กก.` : '—'),
         tdNum(baht(costOf(l))),
         td(badge(status.label, status.tone))
       );

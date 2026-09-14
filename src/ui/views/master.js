@@ -2,7 +2,7 @@
 
 import { el, when } from '../dom.js';
 import {
-  card, confirmAction, fieldGrid, formCard, inputField, meter, selectField,
+  badge, card, confirmAction, fieldGrid, formCard, inputField, meter, selectField,
   table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
@@ -15,8 +15,13 @@ const SUPPLIER_HEAD = [
 ];
 
 const ITEM_HEAD = [
-  'รหัส', 'ชื่อวัตถุดิบ', 'หมวด', 'หน่วยนับ', 'น้ำหนัก/หน่วย (กก.)|R',
-  'อายุ (วัน)|R', 'ขั้นต่ำ (กก.)|R', 'การจัดเก็บ', 'ซัพพลายเออร์หลัก', ''
+  'รหัส', 'ชื่อวัตถุดิบ', 'หมวด', 'หน่วยนับ', 'นับแบบ', 'น้ำหนัก/หน่วย (กก.)|R',
+  'อายุ (วัน)|R', 'ขั้นต่ำ|R', 'การจัดเก็บ', 'ซัพพลายเออร์หลัก', ''
+];
+
+const TRACK_BY_OPTIONS = [
+  { value: 'weight', label: 'น้ำหนัก (กก.)' },
+  { value: 'count', label: 'จำนวนชิ้น' }
 ];
 
 function supplierForm(state) {
@@ -45,6 +50,8 @@ function supplierForm(state) {
 
 function itemForm(state) {
   const editing = state.editingItem;
+  const f = state.itemForm;
+  const isCount = f.trackBy === 'count';
   const supplierOptions = state.suppliers.map(s => ({ value: s.name, label: s.name }));
   return formCard({
     title: editing ? `แก้ไขวัตถุดิบ · ${editing}` : 'เพิ่มวัตถุดิบใหม่ (Item Master)',
@@ -54,12 +61,23 @@ function itemForm(state) {
       inputField('รหัสวัตถุดิบ', 'itemForm', 'code', { placeholder: 'ING-VEG-020', mono: true }),
       inputField('ชื่อวัตถุดิบ', 'itemForm', 'name', { placeholder: 'เช่น แครอทหั่นเต๋า' }),
       inputField('หมวด', 'itemForm', 'category', { placeholder: 'ผักสด / เนื้อสัตว์ / ของแห้ง' }),
-      inputField('หน่วยนับ', 'itemForm', 'unit', { placeholder: 'ลัง / แพ็ค / ถุง' }),
-      inputField('น้ำหนักต่อ 1 หน่วย (กก.)', 'itemForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true }),
+      inputField('หน่วยนับ (หน่วยย่อยที่สุด)', 'itemForm', 'unit', { placeholder: 'ลัง / แพ็ค / ถุง / ใบ' }),
+      selectField('นับสต๊อกแบบ', 'itemForm', 'trackBy', TRACK_BY_OPTIONS),
+      when(!isCount, () =>
+        inputField('น้ำหนักต่อ 1 หน่วย (กก.)', 'itemForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true })),
       inputField('อายุวัตถุดิบ (วัน)', 'itemForm', 'shelfLife', { type: 'number', placeholder: '7', mono: true }),
-      inputField('ขั้นต่ำในคลัง (กก.)', 'itemForm', 'minStock', { type: 'number', placeholder: '20', mono: true }),
+      inputField(
+        isCount ? `ขั้นต่ำในคลัง (${f.unit || 'หน่วย'})` : 'ขั้นต่ำในคลัง (กก.)',
+        'itemForm', 'minStock', { type: 'number', placeholder: '20', mono: true }
+      ),
       inputField('การจัดเก็บ', 'itemForm', 'storage', { placeholder: 'แช่เย็น 2–4°C' }),
       selectField('ซัพพลายเออร์หลัก', 'itemForm', 'mainSupplier', supplierOptions, { placeholder: '— เลือกซัพพลายเออร์ —' }),
+      inputField('หน่วยแพ็ค (ถ้ามี)', 'itemForm', 'packUnit', { placeholder: 'เช่น แพ็ค' }),
+      when(f.packUnit, () =>
+        inputField(`จำนวน ${f.unit || 'หน่วยย่อย'} ต่อ 1 ${f.packUnit}`, 'itemForm', 'packSize', { type: 'number', placeholder: '50', mono: true })),
+      when(f.packUnit, () => inputField('หน่วยกล่อง (ถ้ามี)', 'itemForm', 'caseUnit', { placeholder: 'เช่น กล่อง' })),
+      when(f.packUnit && f.caseUnit, () =>
+        inputField(`จำนวน ${f.packUnit} ต่อ 1 ${f.caseUnit}`, 'itemForm', 'caseSize', { type: 'number', placeholder: '10', mono: true })),
       el('div', { class: 'field field--action', style: { flexDirection: 'row', gap: '8px' } },
         el('button', {
           class: 'btn btn--primary btn--block', text: editing ? 'บันทึกการแก้ไข' : 'เพิ่มวัตถุดิบ',
@@ -109,10 +127,11 @@ function itemRows(state) {
       tdCode(i.code),
       td(i.name),
       td(i.category),
-      td(i.unit),
-      tdNum(n(i.weightPerUnit, 1)),
+      td(i.packUnit ? `${i.unit} (${[i.packUnit, i.caseUnit].filter(Boolean).join(' / ')})` : i.unit),
+      td(badge(i.trackBy === 'count' ? 'จำนวนชิ้น' : 'น้ำหนัก', i.trackBy === 'count' ? 'watch' : 'ok', { plain: true })),
+      tdNum(i.trackBy === 'count' ? '—' : n(i.weightPerUnit, 1)),
       tdNum(n(i.shelfLife)),
-      tdNum(n(i.minStock)),
+      tdNum(`${n(i.minStock)}${i.trackBy === 'count' ? '' : ' กก.'}`),
       td(i.storage),
       td(i.mainSupplier),
       td(when(store.canEdit('master'), () =>

@@ -126,17 +126,44 @@ export function stockByItem(state) {
   });
 }
 
-/** Items whose remaining weight is under their reorder point. */
+/** Items below their reorder point — weight (kg) for a normal item, piece
+ *  count for one tracked by count (minStock means pieces there, not kg). */
 export function lowStock(state) {
-  return stockByItem(state).filter(r => r.weightLeft < r.item.minStock);
+  return stockByItem(state).filter(r =>
+    (r.item.trackBy === 'count' ? r.qtyLeft : r.weightLeft) < r.item.minStock);
 }
 
-/** Latest known price per kilogram for an item, across all branches. */
+/** Latest known price per kilogram for an item, across all branches — null
+ *  for a count-tracked item, where "per kg" is meaningless (weightPerUnit
+ *  is 0), rather than dividing by zero. */
 export function pricePerKg(state, code) {
   const lots = state.lots.filter(l => l.code === code);
-  if (!lots.length) return 0;
+  if (!lots.length) return null;
   const last = lots[lots.length - 1];
-  return last.pricePerUnit / last.weightPerUnit;
+  return last.weightPerUnit ? last.pricePerUnit / last.weightPerUnit : null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pack/case conversion — receiving convenience only; lots/moves always store */
+/* qty in the item's base `unit`, regardless of what level it was entered at. */
+/* -------------------------------------------------------------------------- */
+
+/** Which counting levels an item supports, base unit first. */
+export function unitLevels(item) {
+  const levels = [{ value: 'base', label: item.unit, factor: 1 }];
+  if (item.packUnit && item.packSize) {
+    levels.push({ value: 'pack', label: item.packUnit, factor: Number(item.packSize) });
+    if (item.caseUnit && item.caseSize) {
+      levels.push({ value: 'case', label: item.caseUnit, factor: Number(item.packSize) * Number(item.caseSize) });
+    }
+  }
+  return levels;
+}
+
+/** Converts a quantity entered at `level` (see unitLevels) to the item's base unit. */
+export function baseQtyFor(item, qty, level) {
+  const factor = unitLevels(item).find(l => l.value === level)?.factor || 1;
+  return (Number(qty) || 0) * factor;
 }
 
 /* -------------------------------------------------------------------------- */

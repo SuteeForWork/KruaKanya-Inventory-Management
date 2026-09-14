@@ -46,7 +46,10 @@ const toItem = row => ({
   code: row.code, name: row.name, category: row.category, unit: row.unit,
   weightPerUnit: num(row.weight_per_unit), shelfLife: row.shelf_life,
   minStock: num(row.min_stock), storage: row.storage,
-  mainSupplier: row.suppliers ? row.suppliers.name : null
+  mainSupplier: row.suppliers ? row.suppliers.name : null,
+  trackBy: row.track_by || 'weight',
+  packUnit: row.pack_unit || '', packSize: row.pack_size === null ? null : num(row.pack_size),
+  caseUnit: row.case_unit || '', caseSize: row.case_size === null ? null : num(row.case_size)
 });
 
 const toRecipe = row => ({
@@ -74,7 +77,8 @@ const toMove = row => ({
   qty: num(row.qty), weight: num(row.weight), cost: num(row.cost),
   user: row.staff_name, purpose: row.purpose, note: row.note,
   age: row.age_left_days === null ? undefined : row.age_left_days,
-  createdAt: row.created_at, editedAt: row.edited_at
+  createdAt: row.created_at, editedAt: row.edited_at,
+  pendingCancel: Boolean(row.pending_cancel)
 });
 
 const toOutput = row => ({
@@ -191,7 +195,10 @@ export async function insertItem(item, mainSupplierId) {
     code: item.code, name: item.name, category: item.category, unit: item.unit,
     weight_per_unit: item.weightPerUnit, shelf_life: item.shelfLife,
     min_stock: item.minStock, storage: item.storage,
-    main_supplier_id: mainSupplierId || null
+    main_supplier_id: mainSupplierId || null,
+    track_by: item.trackBy || 'weight',
+    pack_unit: item.packUnit || null, pack_size: item.packSize || null,
+    case_unit: item.caseUnit || null, case_size: item.caseSize || null
   }), 'เพิ่มวัตถุดิบ');
 }
 
@@ -207,7 +214,10 @@ export async function updateItem(oldCode, newCode, item, mainSupplierId) {
     name: item.name, category: item.category, unit: item.unit,
     weight_per_unit: item.weightPerUnit, shelf_life: item.shelfLife,
     min_stock: item.minStock, storage: item.storage,
-    main_supplier_id: mainSupplierId || null
+    main_supplier_id: mainSupplierId || null,
+    track_by: item.trackBy || 'weight',
+    pack_unit: item.packUnit || null, pack_size: item.packSize || null,
+    case_unit: item.caseUnit || null, case_size: item.caseSize || null
   }).eq('code', oldCode), 'แก้ไขวัตถุดิบ');
 }
 
@@ -258,6 +268,17 @@ export async function updateMoveDateTime(docNo, date, time) {
   must(await supabase.from('moves').update({
     move_date: date, move_time: time, edited_at: new Date().toISOString()
   }).eq('doc_no', docNo), 'แก้ไขวันที่-เวลา');
+}
+
+/** Flags (or clears) a non-admin's request to cancel an issue. */
+export async function setMovePendingCancel(docNo, pending) {
+  must(await supabase.from('moves').update({ pending_cancel: pending }).eq('doc_no', docNo), 'ปรับสถานะคำขอยกเลิก');
+}
+
+/** Deletes every moves row for one issue doc — see store.js#cancelIssue,
+ *  which restores the stock they drew down before calling this. */
+export async function deleteMovesByDoc(docNo) {
+  must(await supabase.from('moves').delete().eq('doc_no', docNo), 'ลบประวัติการเบิกออก');
 }
 
 export async function updateLotQtyLeft(lotId, qtyLeft) {

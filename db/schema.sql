@@ -62,12 +62,21 @@ create table items (
   code            text primary key,  -- 'ING-VEG-004'
   name            text not null,
   category        text,
-  unit            text not null,     -- 'ลัง', 'แพ็ค', ...
-  weight_per_unit numeric not null,  -- kg per unit, current/default
+  unit            text not null,     -- base/smallest counting unit: 'ลัง', 'แพ็ค', 'ใบ', ...
+  weight_per_unit numeric not null,  -- kg per unit, current/default — meaningless when track_by = 'count'
   shelf_life      integer not null,  -- days, current/default
-  min_stock       numeric not null,  -- reorder point, kg
+  min_stock       numeric not null,  -- reorder point — kg when track_by = 'weight', else pieces (unit above)
   storage         text,
-  main_supplier_id text references suppliers(id)
+  main_supplier_id text references suppliers(id),
+  -- 'count' items (e.g. instruction cards) are tracked by piece, not kg —
+  -- see db/migrations/009_item_count_tracking.sql.
+  track_by  text not null default 'weight' check (track_by in ('weight', 'count')),
+  -- Optional convenience conversion for receiving in a larger pack size —
+  -- lots/moves always store qty in `unit` above regardless.
+  pack_unit text,             -- e.g. 'แพ็ค'
+  pack_size numeric,          -- units per pack
+  case_unit text,             -- e.g. 'กล่อง'
+  case_size numeric           -- packs per case
 );
 
 -- ---------------------------------------------------------------------------
@@ -134,7 +143,8 @@ create table moves (
   note         text,
   age_left_days integer,             -- shelf life remaining at the moment of issue; null for receipts
   created_at   timestamptz not null default now(),  -- real wall-clock insert time, never edited — admin-only audit column
-  edited_at    timestamptz           -- set only when move_date/move_time is corrected after the fact; null = never edited
+  edited_at    timestamptz,          -- set only when move_date/move_time is corrected after the fact; null = never edited
+  pending_cancel boolean not null default false  -- true while a non-admin's cancel request awaits admin approval
 );
 
 create index moves_branch_date_idx on moves (branch_id, move_date desc);

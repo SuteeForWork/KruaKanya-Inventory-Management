@@ -106,12 +106,17 @@ function alertList(state) {
       };
     });
 
-  const reorder = lowStock(state).map(r => ({
-    tone: 'watch',
-    title: `${r.item.name} · ต่ำกว่าจุดสั่งซื้อ`,
-    meta: `คงเหลือ ${kg(r.weightLeft)} / ขั้นต่ำ ${n(r.item.minStock)} กก. · ${r.item.mainSupplier}`,
-    badge: 'ควรสั่งซื้อ'
-  }));
+  const reorder = lowStock(state).map(r => {
+    const isCount = r.item.trackBy === 'count';
+    const left = isCount ? `${n(r.qtyLeft)} ${r.item.unit}` : kg(r.weightLeft);
+    const min = isCount ? `${n(r.item.minStock)} ${r.item.unit}` : `${n(r.item.minStock)} กก.`;
+    return {
+      tone: 'watch',
+      title: `${r.item.name} · ต่ำกว่าจุดสั่งซื้อ`,
+      meta: `คงเหลือ ${left} / ขั้นต่ำ ${min} · ${r.item.mainSupplier}`,
+      badge: 'ควรสั่งซื้อ'
+    };
+  });
 
   const alerts = ageing.concat(reorder);
 

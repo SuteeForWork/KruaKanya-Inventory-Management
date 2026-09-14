@@ -7,7 +7,7 @@ import {
 } from '../components.js';
 import { store } from '../../core/store.js';
 import { addDays, baht, kg, n, shortDate } from '../../core/format.js';
-import { expiryOf, scopedLots } from '../../core/inventory.js';
+import { baseQtyFor, expiryOf, scopedLots, unitLevels } from '../../core/inventory.js';
 
 const HEAD = [
   'ล็อต', 'วันที่-เวลารับเข้า', 'วัตถุดิบ', 'ซัพพลายเออร์', 'ผู้จัดซื้อ', 'วันที่ผลิต',
@@ -19,24 +19,38 @@ const HEAD = [
 function preview(state) {
   const f = state.receiveForm;
   const item = state.items.find(i => i.code === f.code);
-  const qty = Number(f.qtyIn) || 0;
-  const weightPerUnit = Number(f.weightPerUnit) || (item ? item.weightPerUnit : 0);
+  const isCount = item && item.trackBy === 'count';
+  const qty = item ? baseQtyFor(item, f.qtyIn, f.qtyLevel) : (Number(f.qtyIn) || 0);
+  const weightPerUnit = isCount ? 0 : (Number(f.weightPerUnit) || (item ? item.weightPerUnit : 0));
   const pricePerUnit = Number(f.pricePerUnit) || 0;
   const shelfLife = Number(f.shelfLife) || (item ? item.shelfLife : 0);
 
   const totalWeight = qty * weightPerUnit;
   const totalCost = qty * pricePerUnit;
 
-  return [
-    { label: 'น้ำหนักรับเข้ารวม', value: totalWeight ? kg(totalWeight) : '—', variant: 'green' },
-    { label: 'มูลค่ารวม', value: totalCost ? baht(totalCost) : '—', variant: 'cost' },
-    { label: 'วันหมดอายุ (คำนวณ)', value: shelfLife && f.mfgDate ? shortDate(addDays(f.mfgDate, shelfLife)) : '—' },
-    { label: 'ต้นทุน/กก.', value: totalWeight ? baht(totalCost / totalWeight, 2) : '—' }
-  ];
+  const rows = [];
+  if (isCount) {
+    rows.push({ label: `จำนวนรวม (${item.unit})`, value: qty ? n(qty) : '—', variant: 'green' });
+  } else {
+    rows.push({ label: 'น้ำหนักรับเข้ารวม', value: totalWeight ? kg(totalWeight) : '—', variant: 'green' });
+  }
+  rows.push({ label: 'มูลค่ารวม', value: totalCost ? baht(totalCost) : '—', variant: 'cost' });
+  rows.push({ label: 'วันหมดอายุ (คำนวณ)', value: shelfLife && f.mfgDate ? shortDate(addDays(f.mfgDate, shelfLife)) : '—' });
+  if (!isCount) {
+    rows.push({ label: 'ต้นทุน/กก.', value: totalWeight ? baht(totalCost / totalWeight, 2) : '—' });
+  }
+  return rows;
 }
 
 function form(state) {
   const editing = state.editingLot;
+  const f = state.receiveForm;
+  const item = state.items.find(i => i.code === f.code);
+  const isCount = item && item.trackBy === 'count';
+  const levels = item ? unitLevels(item) : [];
+  // Choosing a pack level is receiving-time convenience only — an edit
+  // always corrects the lot's already-stored base-unit quantity directly.
+  const showLevelPicker = !editing && levels.length > 1;
   const itemOptions = state.items.map(i => ({ value: i.code, label: `${i.code} · ${i.name}` }));
   const supplierOptions = state.suppliers.map(s => ({ value: s.name, label: s.name }));
 
@@ -57,9 +71,16 @@ function form(state) {
       inputField('ชื่อผู้จัดซื้อ', 'receiveForm', 'buyer', { placeholder: 'ชื่อผู้ทำ PO' }),
       inputField('วันที่ผลิต', 'receiveForm', 'mfgDate', { type: 'date' }),
       inputField('อายุวัตถุดิบ (วัน)', 'receiveForm', 'shelfLife', { type: 'number', placeholder: '7', mono: true }),
-      inputField('จำนวนที่รับเข้า (หน่วย)', 'receiveForm', 'qtyIn', { type: 'number', placeholder: '20', mono: true }),
-      inputField('น้ำหนักต่อ 1 หน่วย (กก.)', 'receiveForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true }),
-      inputField('ราคา ณ วันรับเข้า (บาท/หน่วย)', 'receiveForm', 'pricePerUnit', { type: 'number', placeholder: '145', mono: true }),
+      when(showLevelPicker, () =>
+        selectField('นับจำนวนเป็น', 'receiveForm', 'qtyLevel',
+          levels.map(l => ({ value: l.value, label: l.label })))),
+      inputField(
+        `จำนวนที่รับเข้า (${showLevelPicker ? (levels.find(l => l.value === f.qtyLevel) || levels[0]).label : (item ? item.unit : 'หน่วย')})`,
+        'receiveForm', 'qtyIn', { type: 'number', placeholder: '20', mono: true }
+      ),
+      when(!isCount, () =>
+        inputField('น้ำหนักต่อ 1 หน่วย (กก.)', 'receiveForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true })),
+      inputField(`ราคา ณ วันรับเข้า (บาท/${item ? item.unit : 'หน่วย'})`, 'receiveForm', 'pricePerUnit', { type: 'number', placeholder: '145', mono: true }),
       inputField('เลขที่ใบส่งของ / PO', 'receiveForm', 'ref', { placeholder: 'PO-2608-0xx', mono: true })
     ),
     submitRow(
@@ -89,22 +110,26 @@ function historyRows(state) {
     .slice()
     .reverse()
     .filter(l => store.matches(l.name, l.code, l.id, l.supplier, l.buyer, l.ref))
-    .map(l => tr(
-      tdCode(l.id),
-      tdCode(`${shortDate(l.recvDate)} ${l.recvTime}`),
-      tdTitled(l.name, l.code),
-      td(l.supplier),
-      td(l.buyer),
-      tdCode(shortDate(l.mfgDate)),
-      tdNum(n(l.shelfLife)),
-      tdCode(shortDate(expiryOf(l))),
-      tdNum(`${n(l.qtyIn)} ${l.unit}`),
-      tdNum(n(l.qtyIn * l.weightPerUnit, 1)),
-      tdNum(n(l.weightPerUnit, 1)),
-      tdNum(baht(l.pricePerUnit)),
-      tdNum(baht(l.qtyIn * l.pricePerUnit)),
-      td(rowActions(l))
-    ));
+    .map(l => {
+      const item = state.items.find(i => i.code === l.code);
+      const isCount = item && item.trackBy === 'count';
+      return tr(
+        tdCode(l.id),
+        tdCode(`${shortDate(l.recvDate)} ${l.recvTime}`),
+        tdTitled(l.name, l.code),
+        td(l.supplier),
+        td(l.buyer),
+        tdCode(shortDate(l.mfgDate)),
+        tdNum(n(l.shelfLife)),
+        tdCode(shortDate(expiryOf(l))),
+        tdNum(`${n(l.qtyIn)} ${l.unit}`),
+        tdNum(isCount ? '—' : n(l.qtyIn * l.weightPerUnit, 1)),
+        tdNum(isCount ? '—' : n(l.weightPerUnit, 1)),
+        tdNum(baht(l.pricePerUnit)),
+        tdNum(baht(l.qtyIn * l.pricePerUnit)),
+        td(rowActions(l))
+      );
+    });
 }
 
 /** The last column: edit/delete for an untouched lot, an approval status

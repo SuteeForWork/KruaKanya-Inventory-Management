@@ -15,7 +15,7 @@ import { seed } from '../data/seed.js';
 import { config, today } from '../config.js';
 import { clockTime, kg, baht, n, toISODate } from './format.js';
 import {
-  ALL_BRANCHES, allocate, ageLeftOf, branchName, inBranch, issuedOn
+  ALL_BRANCHES, allocate, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn
 } from './inventory.js';
 import { recipePlan } from './production.js';
 import {
@@ -71,7 +71,7 @@ function clearStoredAuth() {
 const blankReceive = () => ({
   recvDate: today(), recvTime: '08:30', code: '', name: '', supplier: '',
   buyer: 'ณัฐพล ส.', mfgDate: '2026-08-25', shelfLife: '',
-  qtyIn: '', weightPerUnit: '', pricePerUnit: '', ref: ''
+  qtyIn: '', qtyLevel: 'base', weightPerUnit: '', pricePerUnit: '', ref: ''
 });
 
 /**
@@ -100,7 +100,8 @@ const blankBranch = () => ({ name: '', type: 'สาขาหน้าร้า�
 
 const blankItem = () => ({
   code: '', name: '', category: '', unit: '', weightPerUnit: '',
-  shelfLife: '', minStock: '', storage: '', mainSupplier: ''
+  shelfLife: '', minStock: '', storage: '', mainSupplier: '',
+  trackBy: 'weight', packUnit: '', packSize: '', caseUnit: '', caseSize: ''
 });
 
 const blankRegister = () => ({
@@ -661,7 +662,10 @@ class Store {
         code: it.code, name: it.name, category: it.category === '-' ? '' : it.category, unit: it.unit,
         weightPerUnit: String(it.weightPerUnit), shelfLife: String(it.shelfLife),
         minStock: String(it.minStock), storage: it.storage === '-' ? '' : it.storage,
-        mainSupplier: it.mainSupplier || ''
+        mainSupplier: it.mainSupplier || '',
+        trackBy: it.trackBy || 'weight',
+        packUnit: it.packUnit || '', packSize: it.packSize ? String(it.packSize) : '',
+        caseUnit: it.caseUnit || '', caseSize: it.caseSize ? String(it.caseSize) : ''
       }
     });
   }
@@ -673,19 +677,36 @@ class Store {
   async addItem() {
     if (!this.guard('master')) return;
     const f = this.state.itemForm;
-    const weightPerUnit = Number(f.weightPerUnit) || 0;
+    const trackBy = f.trackBy === 'count' ? 'count' : 'weight';
+    // A count-tracked item (e.g. instruction cards) isn't weighed at all —
+    // weightPerUnit stays 0 and every weight-derived figure for it is 0 too,
+    // which lowStock()/pricePerKg() in inventory.js already treat correctly.
+    const weightPerUnit = trackBy === 'count' ? 0 : (Number(f.weightPerUnit) || 0);
     const shelfLife = Number(f.shelfLife) || 0;
     const minStock = Number(f.minStock) || 0;
+    const packSize = Number(f.packSize) || 0;
+    const caseSize = Number(f.caseSize) || 0;
 
-    if (!f.code || !f.name || !f.unit || !weightPerUnit || !shelfLife) {
-      this.say('กรอกไม่ครบ — ต้องมีรหัส ชื่อ หน่วยนับ น้ำหนัก/หน่วย และอายุวัตถุดิบ', true);
+    if (!f.code || !f.name || !f.unit || !shelfLife || (trackBy === 'weight' && !weightPerUnit)) {
+      this.say('กรอกไม่ครบ — ต้องมีรหัส ชื่อ หน่วยนับ และอายุวัตถุดิบ (และน้ำหนัก/หน่วย ถ้านับเป็นน้ำหนัก)', true);
+      return;
+    }
+    if (f.packUnit && !packSize) {
+      this.say('ระบุจำนวนต่อแพ็คด้วย ถ้ามีหน่วยแพ็ค', true);
+      return;
+    }
+    if (f.caseUnit && (!f.packUnit || !caseSize)) {
+      this.say('หน่วยกล่องต้องมีหน่วยแพ็คก่อน พร้อมจำนวนแพ็คต่อกล่อง', true);
       return;
     }
 
     const patch = {
       name: f.name, category: f.category || '-', unit: f.unit,
       weightPerUnit, shelfLife, minStock, storage: f.storage || '-',
-      mainSupplier: f.mainSupplier || null
+      mainSupplier: f.mainSupplier || null,
+      trackBy,
+      packUnit: f.packUnit || '', packSize: f.packUnit ? packSize : null,
+      caseUnit: f.caseUnit || '', caseSize: f.caseUnit ? caseSize : null
     };
 
     if (this.state.editingItem) {
@@ -738,7 +759,8 @@ class Store {
         name:          item ? item.name : s.receiveForm.name,
         weightPerUnit: item ? String(item.weightPerUnit) : s.receiveForm.weightPerUnit,
         shelfLife:     item ? String(item.shelfLife) : s.receiveForm.shelfLife,
-        supplier:      item && !s.receiveForm.supplier ? item.mainSupplier : s.receiveForm.supplier
+        supplier:      item && !s.receiveForm.supplier ? item.mainSupplier : s.receiveForm.supplier,
+        qtyLevel: 'base'
       }
     }));
   }
@@ -809,13 +831,15 @@ class Store {
     if (!original) { this.cancelEditLot(); return; }
 
     const f = this.state.receiveForm;
+    const item = this.state.items.find(i => i.code === original.code);
+    const isCount = item && item.trackBy === 'count';
     const qtyIn = Number(f.qtyIn) || 0;
-    const weightPerUnit = Number(f.weightPerUnit) || 0;
+    const weightPerUnit = isCount ? 0 : (Number(f.weightPerUnit) || 0);
     const pricePerUnit = Number(f.pricePerUnit) || 0;
     const shelfLife = Number(f.shelfLife) || 0;
 
-    if (!qtyIn || !pricePerUnit || !weightPerUnit || !shelfLife) {
-      this.say('กรอกไม่ครบ — ต้องมีจำนวน น้ำหนัก/หน่วย ราคา และอายุวัตถุดิบ', true);
+    if (!qtyIn || !pricePerUnit || !shelfLife || (!isCount && !weightPerUnit)) {
+      this.say('กรอกไม่ครบ — ต้องมีจำนวน ราคา และอายุวัตถุดิบ (และน้ำหนัก/หน่วย ถ้าวัตถุดิบนี้นับเป็นน้ำหนัก)', true);
       return;
     }
 
@@ -899,13 +923,17 @@ class Store {
     const f = this.state.receiveForm;
     const item = this.state.items.find(i => i.code === f.code);
     const name = f.name || (item ? item.name : '');
-    const qty = Number(f.qtyIn) || 0;
-    const weightPerUnit = Number(f.weightPerUnit) || (item ? item.weightPerUnit : 0);
+    // qtyIn is entered at whichever pack level the item offers (ชิ้น/แพ็ค/
+    // กล่อง — see unitLevels()); qty itself, like everything downstream, is
+    // always in the item's base unit.
+    const qty = item ? baseQtyFor(item, f.qtyIn, f.qtyLevel) : (Number(f.qtyIn) || 0);
+    const isCount = item && item.trackBy === 'count';
+    const weightPerUnit = isCount ? 0 : (Number(f.weightPerUnit) || (item ? item.weightPerUnit : 0));
     const pricePerUnit = Number(f.pricePerUnit) || 0;
     const shelfLife = Number(f.shelfLife) || (item ? item.shelfLife : 0);
 
-    if (!f.code || !name || !qty || !pricePerUnit || !weightPerUnit) {
-      this.say('กรอกไม่ครบ — ต้องมีรหัสวัตถุดิบ ชื่อ จำนวน น้ำหนัก/หน่วย และราคา', true);
+    if (!f.code || !name || !qty || !pricePerUnit || (!isCount && !weightPerUnit)) {
+      this.say('กรอกไม่ครบ — ต้องมีรหัสวัตถุดิบ ชื่อ จำนวน และราคา (และน้ำหนัก/หน่วย ถ้าวัตถุดิบนี้นับเป็นน้ำหนัก)', true);
       return;
     }
 
@@ -935,7 +963,8 @@ class Store {
       // Keep supplier and buyer — receiving usually comes in runs from one PO.
       receiveForm: { ...blankReceive(), supplier: f.supplier, buyer: f.buyer }
     }));
-    this.say(`รับเข้า ${lotId} · ${name} ${n(qty)} หน่วย (${kg(qty * weightPerUnit)}) มูลค่า ${baht(qty * pricePerUnit)}`);
+    const weightTail = isCount ? '' : ` (${kg(qty * weightPerUnit)})`;
+    this.say(`รับเข้า ${lotId} · ${name} ${n(qty)} ${lot.unit}${weightTail} มูลค่า ${baht(qty * pricePerUnit)}`);
   }
 
   /* ---- issuing ---------------------------------------------------------- */
@@ -1067,6 +1096,87 @@ class Store {
       editingMoveDoc: null, editMoveDate: '', editMoveTime: ''
     }));
     this.say(`แก้ไขวันที่-เวลาของ ${docNo} เรียบร้อย`);
+  }
+
+  /**
+   * Whether canceling this issue doc is safe right now. A plain issue/waste
+   * is always safe to unwind — restoring stock to the source lot can never
+   * push it past what it started with (allocate() never lets active draws
+   * exceed a lot's qty_in in the first place). A transfer is the one case
+   * that can go wrong: its destination-side lot (see transferLots in
+   * submitIssue) must still be untouched, or reversing the transfer would
+   * mean clawing back stock someone already drew from — same "untouched"
+   * rule lotDeletable() already enforces for deleting a receiving record.
+   */
+  transferLotsFor(docNo) {
+    // ref === docNo alone would also match a hand-typed PO number that
+    // happens to collide with an auto-generated doc number by coincidence —
+    // the '-T<n>' suffix is only ever produced by submitIssue's transfer path.
+    return this.state.lots.filter(l => l.ref === docNo && /-T\d+$/.test(l.id));
+  }
+
+  issueCancelable(docNo) {
+    return this.transferLotsFor(docNo).every(lot => this.lotDeletable(lot));
+  }
+
+  /** Admin-only, immediate — also the final step once a request is approved. */
+  async cancelIssue(docNo) {
+    if (!this.isAdmin()) return;
+    const rows = this.state.moves.filter(m => m.id === docNo);
+    if (!rows.length) return;
+    if (!this.issueCancelable(docNo)) return;
+
+    const transferLots = this.transferLotsFor(docNo);
+
+    const ok = await this.persist('ยกเลิกการเบิกออก', async () => {
+      for (const m of rows) {
+        const lot = this.state.lots.find(l => l.id === m.lotId);
+        if (lot) await db.updateLotQtyLeft(lot.id, lot.qtyLeft + m.qty);
+      }
+      for (const lot of transferLots) await db.deleteLot(lot.id);
+      await db.deleteMovesByDoc(docNo);
+    });
+    if (!ok) return;
+
+    this.set(s => ({
+      lots: s.lots
+        .filter(l => !transferLots.some(t => t.id === l.id))
+        .map(l => {
+          const hit = rows.find(m => m.lotId === l.id);
+          return hit ? { ...l, qtyLeft: l.qtyLeft + hit.qty } : l;
+        }),
+      moves: s.moves.filter(m => m.id !== docNo)
+    }));
+    this.say(`ยกเลิก ${docNo} เรียบร้อย — คืนสต๊อกแล้ว`);
+  }
+
+  /** Admin cancels right away; anyone else who can edit "เบิกออก" only
+   *  flags the issue for approval — see approveCancelIssue / rejectCancelIssue. */
+  async requestCancelIssue(docNo) {
+    if (!this.guard('issue')) return;
+    if (!this.issueCancelable(docNo)) {
+      this.say('ยกเลิกไม่ได้ — สินค้าที่โอนไปสาขาปลายทางถูกเบิก/โอนออกต่อไปแล้ว', true);
+      return;
+    }
+    if (this.isAdmin()) { await this.cancelIssue(docNo); return; }
+
+    const ok = await this.persist('ขอยกเลิกการเบิกออก', () => db.setMovePendingCancel(docNo, true));
+    if (!ok) return;
+    this.set(s => ({ moves: s.moves.map(m => (m.id === docNo ? { ...m, pendingCancel: true } : m)) }));
+    this.say(`ส่งคำขอยกเลิก ${docNo} แล้ว — รอผู้ดูแลระบบอนุมัติ`);
+  }
+
+  async approveCancelIssue(docNo) {
+    if (!this.isAdmin()) return;
+    await this.cancelIssue(docNo);
+  }
+
+  async rejectCancelIssue(docNo) {
+    if (!this.isAdmin()) return;
+    const ok = await this.persist('ปฏิเสธคำขอยกเลิก', () => db.setMovePendingCancel(docNo, false));
+    if (!ok) return;
+    this.set(s => ({ moves: s.moves.map(m => (m.id === docNo ? { ...m, pendingCancel: false } : m)) }));
+    this.say('ปฏิเสธคำขอยกเลิกแล้ว');
   }
 
   /* ---- production output ------------------------------------------------ */

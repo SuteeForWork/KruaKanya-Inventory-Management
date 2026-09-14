@@ -151,7 +151,42 @@ function actionsCell(state, m) {
       )
     );
   }
-  return td(el('button', { class: 'btn btn--small', text: 'แก้ไข', onClick: () => store.startEditMoveDateTime(m.id) }));
+
+  if (m.pendingCancel) {
+    if (!store.isAdmin()) return td(badge('รออนุมัติยกเลิก', 'watch'));
+    return td(
+      el('div', { class: 'row', style: { gap: '6px' } },
+        badge('รออนุมัติยกเลิก', 'watch'),
+        el('button', {
+          class: 'btn btn--small', text: 'อนุมัติยกเลิก',
+          onClick: () => {
+            if (confirmAction(`ยืนยันยกเลิกการเบิกออก ${m.id} ถาวร? สต๊อกจะถูกคืนกลับ การลบนี้กู้คืนไม่ได้`)) store.approveCancelIssue(m.id);
+          }
+        }),
+        el('button', {
+          class: 'btn btn--small', text: 'ปฏิเสธ',
+          onClick: () => {
+            if (confirmAction(`ยืนยันปฏิเสธคำขอยกเลิกการเบิกออก ${m.id}?`)) store.rejectCancelIssue(m.id);
+          }
+        })
+      )
+    );
+  }
+
+  return td(
+    el('div', { class: 'row', style: { gap: '6px' } },
+      el('button', { class: 'btn btn--small', text: 'แก้ไข', onClick: () => store.startEditMoveDateTime(m.id) }),
+      el('button', {
+        class: 'btn btn--small', text: 'ยกเลิกการเบิก',
+        onClick: () => {
+          const msg = store.isAdmin()
+            ? `ยืนยันยกเลิกการเบิกออก ${m.id} ถาวร? สต๊อกจะถูกคืนกลับ การลบนี้กู้คืนไม่ได้`
+            : `ยืนยันส่งคำขอยกเลิกการเบิกออก ${m.id}? ต้องรอผู้ดูแลระบบอนุมัติก่อนจึงจะยกเลิกจริง`;
+          if (confirmAction(msg)) store.requestCancelIssue(m.id);
+        }
+      })
+    )
+  );
 }
 
 function historyRows(state) {

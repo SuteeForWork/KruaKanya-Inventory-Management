@@ -1,0 +1,24 @@
+-- ==========================================================================
+-- Migration 008 — canceling a mistaken issue, gated by role (same shape as
+-- migration 006's lot-delete requests)
+--
+-- Admin can cancel an issue/waste/transfer outright — every moves row
+-- sharing its doc_no is removed and the stock it drew down is restored to
+-- the source lot(s). Everyone else who can edit "เบิกออก" can only request
+-- a cancel: the row is flagged pending_cancel and shows "รออนุมัติยกเลิก"
+-- until admin approves (cancels for real) or rejects (clears the flag).
+-- See store.js#cancelIssue / requestCancelIssue / approveCancelIssue /
+-- rejectCancelIssue.
+--
+-- A transfer's destination-side lot (the matching receipt created at the
+-- other branch) can only be cancelled along with it while that lot is
+-- still untouched (qty_left = qty_in) — same rule migration 006 already
+-- applies to deleting a receiving record, reused here via
+-- store.js#lotDeletable so a transfer already drawn down at the
+-- destination can't be silently unwound.
+--
+-- Safe to run against a live database: adds one column, touches nothing
+-- existing. Safe to re-run too.
+-- ==========================================================================
+
+alter table moves add column if not exists pending_cancel boolean not null default false;
