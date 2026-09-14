@@ -858,11 +858,19 @@ class Store {
       shelfLife, weightPerUnit, qtyIn, qtyLeft, pricePerUnit, ref: f.ref || '-'
     };
 
-    const ok = await this.persist('แก้ไขรายการรับเข้า', () => db.updateLot(id, patch, this.supplierIdByName(f.supplier)));
+    const ok = await this.persist('แก้ไขรายการรับเข้า', async () => {
+      await db.updateLot(id, patch, this.supplierIdByName(f.supplier));
+      await db.updateReceiptMove(id, patch);
+    });
     if (!ok) return;
 
     this.set(s => ({
       lots: s.lots.map(l => (l.id === id ? { ...l, ...patch } : l)),
+      moves: s.moves.map(m => (m.lotId === id && m.type === 'รับเข้า' ? {
+        ...m, date: patch.recvDate, time: patch.recvTime,
+        qty: patch.qtyIn, weight: patch.qtyIn * patch.weightPerUnit, cost: patch.qtyIn * patch.pricePerUnit,
+        user: patch.buyer, note: `${patch.supplier} · ${patch.ref}`
+      } : m)),
       editingLot: null, receiveForm: blankReceive()
     }));
     this.say(`แก้ไข ${id} เรียบร้อย`);

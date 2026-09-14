@@ -311,6 +311,22 @@ export async function deleteLot(lotId) {
   must(await supabase.from('lots').delete().eq('id', lotId), 'ลบรายการรับเข้า');
 }
 
+/**
+ * Keeps a receipt's ledger entry in sync with a corrected lot — saveLotEdit()
+ * can change the date/qty/weight/price/buyer/supplier/ref of a receipt after
+ * the fact, and without this the "รายงานการเคลื่อนไหว" ledger silently kept
+ * showing the original, now-wrong values (qty/weight/cost recomputed from
+ * the corrected figures; a lot always has exactly one 'รับเข้า' move, so
+ * matching on lot_id + type is unambiguous).
+ */
+export async function updateReceiptMove(lotId, patch) {
+  must(await supabase.from('moves').update({
+    move_date: patch.recvDate, move_time: patch.recvTime,
+    qty: patch.qtyIn, weight: patch.qtyIn * patch.weightPerUnit, cost: patch.qtyIn * patch.pricePerUnit,
+    staff_name: patch.buyer, note: `${patch.supplier} · ${patch.ref}`
+  }).eq('lot_id', lotId).eq('type', 'รับเข้า'), 'ปรับปรุงรายการเคลื่อนไหวที่เกี่ยวข้อง');
+}
+
 /** A branch transfer also lands as a brand-new lot at the destination. */
 export async function insertTransferLot(lot, supplierId) {
   must(await supabase.from('lots').insert({
