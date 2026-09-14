@@ -1057,7 +1057,8 @@ class Store {
     const tail = isTransfer
       ? ` · โอนเข้า ${this.branchLabel(f.dest)} แล้ว`
       : ` ตัดจาก ${issueMoves.length} ล็อต`;
-    this.say(`${doc} · ${issueMoves[0].name} ${n(qty)} หน่วย (${kg(totalWeight)}) ต้นทุน ${baht(totalCost)}${tail}`);
+    const weightTail = totalWeight ? ` (${kg(totalWeight)})` : '';
+    this.say(`${doc} · ${issueMoves[0].name} ${n(qty)} หน่วย${weightTail} ต้นทุน ${baht(totalCost)}${tail}`);
   }
 
   /**
