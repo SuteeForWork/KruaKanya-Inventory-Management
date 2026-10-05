@@ -9,9 +9,13 @@ export function n(value, decimals = 0) {
   });
 }
 
-/** Thai baht. */
-export function baht(value, decimals = 0) {
-  return '฿' + n(value, decimals);
+/** Thai baht — whole baht when the amount is whole, satang (2 decimals)
+ *  when it isn't, so a decimal unit price doesn't display as a rounded-off
+ *  total. Pass `decimals` to force a fixed precision. */
+export function baht(value, decimals) {
+  const x = Number(value) || 0;
+  const d = decimals ?? (Math.abs(x - Math.round(x)) >= 0.005 ? 2 : 0);
+  return '฿' + n(x, d);
 }
 
 /** A kg amount as a plain number — one decimal normally, three for a
@@ -26,6 +30,22 @@ export function kgNum(value) {
 /** Kilograms, with the unit suffix — see kgNum() for the decimal rule. */
 export function kg(value) {
   return kgNum(value) + ' กก.';
+}
+
+/**
+ * Filters what was typed into a numeric field down to digits and at most one
+ * decimal point. Numeric fields are plain text inputs rather than
+ * type="number" — a number input decides what counts as a decimal point from
+ * the browser/OS locale and silently rejects or wipes the rest, so "." could
+ * simply not be typed on some setups. Thai digits are converted, and commas
+ * are dropped as thousands separators (Thai usage), so "1,500" still works.
+ */
+export function cleanDecimal(raw) {
+  const s = String(raw ?? '')
+    .replace(/[๐-๙]/g, d => '๐๑๒๓๔๕๖๗๘๙'.indexOf(d))
+    .replace(/[^0-9.]/g, '');
+  const dot = s.indexOf('.');
+  return dot < 0 ? s : s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
 }
 
 /** A weight typed in 'g' or 'kg' → kg, the unit every stored weight uses. */

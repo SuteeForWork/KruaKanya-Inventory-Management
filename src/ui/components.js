@@ -2,9 +2,10 @@
 
 import { el, when } from './dom.js';
 import { store } from '../core/store.js';
+import { cleanDecimal } from '../core/format.js';
 
 /* -------------------------------------------------------------------------- */
-/* Cards                                                                       */
+/* Cards                                                                      */
 /* -------------------------------------------------------------------------- */
 
 /** A titled card with a table or list inside. `note` sits on the right. */
@@ -116,18 +117,22 @@ export function meter(pct, tone, { value = null, stacked = false, footnote = nul
  * re-render that every keystroke triggers.
  */
 export function inputField(label, form, field, opts = {}) {
-  const { type = 'text', placeholder = '', mono = false, variant = null, onInput = null, disabled = false, step = null } = opts;
+  const { type = 'text', placeholder = '', mono = false, variant = null, onInput = null, disabled = false } = opts;
+  // `type: 'number'` is rendered as a filtered text input — see cleanDecimal().
+  // inputmode keeps the numeric keypad with a decimal-point key on phones.
+  const numeric = type === 'number';
   const control = el('input', {
-    type,
+    type: numeric ? 'text' : type,
     value: store.state[form][field] ?? '',
     placeholder,
     disabled,
-    // Without step="any", a lot of mobile keyboards drop the decimal-point
-    // key from a number input entirely — not just an arrow-button quirk.
-    step: type === 'number' ? (step || 'any') : null,
-    inputmode: type === 'number' ? 'decimal' : null,
+    inputmode: numeric ? 'decimal' : null,
+    autocomplete: numeric ? 'off' : null,
     'data-bind': `${form}.${field}`,
-    onInput: e => (onInput ? onInput(e.target.value) : store.setField(form, field, e.target.value))
+    onInput: e => {
+      const value = numeric ? cleanDecimal(e.target.value) : e.target.value;
+      return onInput ? onInput(value) : store.setField(form, field, value);
+    }
   });
   return el('label', { class: ['field', mono && 'field--mono', variant && 'field--' + variant] },
     el('span', { class: 'field__label', text: label }),

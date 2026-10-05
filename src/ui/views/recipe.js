@@ -6,7 +6,7 @@ import {
   statCard, submitRow, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
-import { baht, n } from '../../core/format.js';
+import { baht, cleanDecimal, n } from '../../core/format.js';
 import { pricePerKg } from '../../core/inventory.js';
 import {
   capacityOf, dailyProduction, productVariance, recipePlan,
@@ -89,9 +89,9 @@ function recipeLine(state, line, index) {
   return el('div', { class: 'recipe-line' },
     select,
     el('input', {
-      type: 'number', value: line.qty, placeholder: 'กก. ต่อหน่วย',
+      type: 'text', inputmode: 'decimal', autocomplete: 'off', value: line.qty, placeholder: 'กก. ต่อหน่วย',
       'data-bind': `recipeForm.lines.${index}.qty`,
-      onInput: e => store.setRecipeLine(index, 'qty', e.target.value)
+      onInput: e => store.setRecipeLine(index, 'qty', cleanDecimal(e.target.value))
     }),
     el('span', { class: 'recipe-line__cost', text: cost })
   );
