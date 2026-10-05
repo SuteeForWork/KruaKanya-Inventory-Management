@@ -223,6 +223,16 @@ function topbar(state) {
 /* Render loop                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * What the last draw put on screen. The whole tree is rebuilt on every state
+ * change (every keystroke), and a rebuilt element restarts its CSS entrance
+ * animation — so the page fading in and the toast rising in replayed on each
+ * key press, which read as flicker while typing. They only animate now when
+ * the view or the toast actually changed since the previous draw.
+ */
+let shownView = null;
+let shownToast = null;
+
 function appView(state) {
   // Belt-and-suspenders: the nav item is already hidden from non-admins, but
   // render-time state can be reached other ways (e.g. state.view set
@@ -234,9 +244,9 @@ function appView(state) {
     sidebar(state),
     el('main', { class: 'main', 'data-print': 'grow' },
       topbar(state),
-      el('div', { class: 'page' }, view())
+      el('div', { class: ['page', state.view !== shownView && 'page--enter'] }, view())
     ),
-    when(state.toast, () => el('div', { class: 'toast', 'data-print': 'hide' },
+    when(state.toast, () => el('div', { class: ['toast', state.toast !== shownToast && 'toast--enter'], 'data-print': 'hide' },
       el('span', { class: ['toast__dot', 'toast__dot--' + state.toast.tone] }),
       el('div', { class: 'toast__text', text: state.toast.text })
     ))
@@ -291,6 +301,8 @@ function mount() {
       ? bootScreen(store.state)
       : store.state.auth ? appView(store.state) : loginView();
     render(root, page);
+    shownView = store.state.auth ? store.state.view : null;
+    shownToast = store.state.toast;
     restoreFocus(snapshot, root);
     window.scrollTo({ top: scroll });
   };
