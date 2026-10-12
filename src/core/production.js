@@ -73,6 +73,20 @@ export function capacityOf(state, recipe) {
 /* Yield                                                                       */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The grams the production form works in, and the kg that get stored.
+ * Total weight = pieces × weight per piece; total waste = trimmed pork fat +
+ * rice left over from vacuum sealing. Both totals are derived, never typed —
+ * outputs.weight / outputs.reject (and every yield figure built on them)
+ * stay in kg, so the conversion happens here, once.
+ */
+export function outputFigures(form) {
+  const qty = Number(form.qty) || 0;
+  const weightG = qty * (Number(form.unitWeight) || 0);
+  const rejectG = (Number(form.trimFat) || 0) + (Number(form.riceLeft) || 0);
+  return { qty, weightG, rejectG, weightKg: weightG / 1000, rejectKg: rejectG / 1000 };
+}
+
 export function yieldTarget() {
   return Number(config.yieldTarget ?? 88);
 }

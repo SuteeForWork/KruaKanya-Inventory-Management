@@ -17,7 +17,7 @@ import { clockTime, kg, baht, n, toISODate, toKg } from './format.js';
 import {
   ALL_BRANCHES, allocate, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn
 } from './inventory.js';
-import { recipePlan } from './production.js';
+import { outputFigures, recipePlan } from './production.js';
 import {
   PERM_ORDER, ROLES, SECTIONS, STAFF_ROLES,
   setRoles, authenticate, defaultPerms, firstViewFor, roleByKey
@@ -86,7 +86,7 @@ const blankIssue = () => ({
 
 const blankOutput = () => ({
   date: today(), shift: SHIFTS[0], product: '', qty: '',
-  unit: 'กล่อง', weight: '', reject: '', staff: 'เชฟกวิน ร.'
+  unit: 'กล่อง', unitWeight: '', trimFat: '', riceLeft: '', staff: 'เชฟกวิน ร.'
 });
 
 const blankRecipe = () => ({
@@ -1197,10 +1197,9 @@ class Store {
     if (!this.guard('output') || !this.requireBranch()) return;
 
     const f = this.state.outputForm;
-    const qty = Number(f.qty) || 0;
-    const weight = Number(f.weight) || 0;
+    const { qty, weightKg: weight, rejectKg } = outputFigures(f);
     if (!f.product || !qty || !weight) {
-      this.say('กรอกไม่ครบ — ต้องมีชื่อสินค้า จำนวนที่ผลิตได้ และน้ำหนักผลผลิต', true);
+      this.say('กรอกไม่ครบ — ต้องมีชื่อสินค้า จำนวนที่ผลิตได้ และน้ำหนักต่อชิ้น', true);
       return;
     }
 
@@ -1209,7 +1208,7 @@ class Store {
       id: 'PD-' + f.date.slice(2).replace(/-/g, '') + '-' + (this.state.outputs.length + 1),
       date: f.date, shift: f.shift, product: f.product,
       qty, unit: f.unit || 'หน่วย', weight,
-      reject: Number(f.reject) || 0,
+      reject: rejectKg,
       staff: f.staff || '-'
     };
 

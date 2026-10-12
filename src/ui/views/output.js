@@ -6,10 +6,10 @@ import {
   statCard, submitRow, table, td, tdCode, tdNum, tr
 } from '../components.js';
 import { store, SHIFTS } from '../../core/store.js';
-import { baht, kg, n, shortDate } from '../../core/format.js';
+import { baht, kg, kgNum, n, shortDate } from '../../core/format.js';
 import { today } from '../../config.js';
 import { issuedOn, scopedOutputs } from '../../core/inventory.js';
-import { dailyProduction, yieldStatus, yieldTarget } from '../../core/production.js';
+import { dailyProduction, outputFigures, yieldStatus, yieldTarget } from '../../core/production.js';
 
 const DAILY_HEAD = [
   'วันที่', 'สินค้าที่ผลิต', 'จำนวนผลิตได้ (คละหน่วย)|R', 'น้ำหนักผลผลิต (กก.)|R',
@@ -77,17 +77,24 @@ function stats(state, daily) {
   ];
 }
 
+/** A computed figure shown in the form's grid — same look as a field, but not typeable. */
+function calculatedField(label, value) {
+  return el('label', { class: 'field field--mono' },
+    el('span', { class: 'field__label', text: label }),
+    el('input', { value, readonly: true, tabindex: '-1' })
+  );
+}
+
 function form(state) {
   const f = state.outputForm;
   const issued = issuedOn(state, f.date);
-  const qty = Number(f.qty) || 0;
-  const weight = Number(f.weight) || 0;
-  const pct = issued.weight ? (weight / issued.weight) * 100 : 0;
+  const { qty, weightG, rejectG, weightKg } = outputFigures(f);
+  const pct = issued.weight ? (weightKg / issued.weight) * 100 : 0;
   const status = yieldStatus(pct);
 
   return formCard({
     title: 'บันทึกยอดที่ผลิตได้',
-    note: 'ระบบจะเทียบกับน้ำหนักวัตถุดิบที่เบิกออกในวันเดียวกันอัตโนมัติ'
+    note: 'น้ำหนักรวม = จำนวนที่ผลิตได้ × น้ำหนักต่อชิ้น · ของเสียทั้งหมด = มันหมูที่ตัดแต่ง + ข้าวที่เหลือ · เทียบกับวัตถุดิบที่เบิกออกในวันเดียวกันอัตโนมัติ'
   },
     fieldGrid('sm',
       inputField('วันที่ผลิต', 'outputForm', 'date', { type: 'date' }),
@@ -95,8 +102,11 @@ function form(state) {
       inputField('สินค้า / เมนูที่ผลิต', 'outputForm', 'product', { placeholder: 'เช่น ข้าวกล่องไก่ย่าง' }),
       inputField('จำนวนที่ผลิตได้', 'outputForm', 'qty', { type: 'number', placeholder: '240', mono: true }),
       inputField('หน่วยผลผลิต', 'outputForm', 'unit', { placeholder: 'กล่อง / ถาด / ชิ้น' }),
-      inputField('น้ำหนักผลผลิตรวม (กก.)', 'outputForm', 'weight', { type: 'number', placeholder: '62', mono: true }),
-      inputField('ของเสียจากการผลิต (กก.)', 'outputForm', 'reject', { type: 'number', placeholder: '0', mono: true }),
+      inputField('น้ำหนักต่อชิ้น (กรัม)', 'outputForm', 'unitWeight', { type: 'number', placeholder: '258', mono: true }),
+      calculatedField('น้ำหนักผลผลิตรวม (กรัม)', weightG ? n(weightG, 1) : ''),
+      inputField('มันหมูที่ตัดแต่งทั้งหมด (กรัม)', 'outputForm', 'trimFat', { type: 'number', placeholder: '0', mono: true }),
+      inputField('ข้าวที่เหลือจากการ Vacuum Seal (กรัม)', 'outputForm', 'riceLeft', { type: 'number', placeholder: '0', mono: true }),
+      calculatedField('ของเสียจากการผลิตทั้งหมด (กรัม)', rejectG ? n(rejectG, 1) : ''),
       inputField('ผู้บันทึก', 'outputForm', 'staff', { placeholder: 'เช่น เชฟกวิน ร.' })
     ),
     submitRow(
@@ -149,8 +159,8 @@ function recordRows(state) {
       td(o.shift),
       td(o.product),
       tdNum(`${n(o.qty)} ${o.unit}`),
-      tdNum(n(o.weight, 1)),
-      tdNum(o.reject ? n(o.reject, 1) : '—'),
+      tdNum(kgNum(o.weight)),
+      tdNum(o.reject ? kgNum(o.reject) : '—'),
       tdNum(`${n((o.weight / o.qty) * 1000, 0)} ก.`),
       td(o.staff)
     ));
