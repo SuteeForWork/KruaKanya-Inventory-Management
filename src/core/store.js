@@ -17,7 +17,7 @@ import { clockTime, kg, baht, n, toISODate, toKg } from './format.js';
 import {
   ALL_BRANCHES, allocate, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn
 } from './inventory.js';
-import { outputFigures, recipePlan } from './production.js';
+import { outputFigures, outputIngredients, recipePlan } from './production.js';
 import {
   PERM_ORDER, ROLES, SECTIONS, STAFF_ROLES,
   setRoles, authenticate, defaultPerms, firstViewFor, roleByKey
@@ -27,7 +27,6 @@ import * as db from './db.js';
 const TOAST_MS = 4200;
 
 export const PURPOSES = ['เบิกผลิต', 'เบิกโอนสาขา', 'เบิกทดลองสูตร', 'ตัดทิ้ง/ของเสีย'];
-export const SHIFTS = ['กะเช้า 05:00–13:00', 'กะบ่าย 13:00–21:00', 'กะดึก 21:00–05:00'];
 export const BRANCH_TYPES = ['โรงผลิต', 'สาขาหน้าร้าน', 'คลังกระจายสินค้า'];
 export const MOVE_FILTERS = ['ทั้งหมด', 'รับเข้า', 'เบิกออก', 'ของเสีย'];
 
@@ -85,8 +84,10 @@ const blankIssue = () => ({
 });
 
 const blankOutput = () => ({
-  date: today(), shift: SHIFTS[0], product: '', qty: '',
-  unit: 'กล่อง', unitWeight: '', trimFat: '', riceLeft: '', staff: 'เชฟกวิน ร.'
+  date: today(), shiftStart: '08:00', shiftEnd: '17:00', product: '', qty: '',
+  weight: '', weightUnit: 'g', reject: '', rejectUnit: 'g',
+  pork: '', porkUnit: 'g', trimFat: '', trimFatUnit: 'g',
+  staff: 'เชฟกวิน ร.'
 });
 
 const blankRecipe = () => ({
@@ -1197,18 +1198,25 @@ class Store {
     if (!this.guard('output') || !this.requireBranch()) return;
 
     const f = this.state.outputForm;
-    const { qty, weightKg: weight, rejectKg } = outputFigures(f);
+    const { qty, weightKg: weight, rejectKg, porkKg, trimFatKg } = outputFigures(f);
+    if (!this.state.recipes.length) {
+      this.say('ยังไม่มีสูตร BOM — เพิ่มสูตรที่หน้า "เมนู & สูตร (BOM)" ก่อน แล้วจึงเลือกสินค้าที่ผลิตได้', true);
+      return;
+    }
     if (!f.product || !qty || !weight) {
-      this.say('กรอกไม่ครบ — ต้องมีชื่อสินค้า จำนวนที่ผลิตได้ และน้ำหนักต่อชิ้น', true);
+      this.say('กรอกไม่ครบ — ต้องเลือกสินค้าจากสูตร BOM และกรอกจำนวนที่ผลิตได้ กับน้ำหนักการผลิตทั้งหมด', true);
       return;
     }
 
+    const plan = outputIngredients(this.state, f);
     const record = {
       branch: this.state.branch,
       id: 'PD-' + f.date.slice(2).replace(/-/g, '') + '-' + (this.state.outputs.length + 1),
-      date: f.date, shift: f.shift, product: f.product,
-      qty, unit: f.unit || 'หน่วย', weight,
-      reject: rejectKg,
+      date: f.date, product: f.product,
+      shift: f.shiftStart && f.shiftEnd ? `${f.shiftStart}–${f.shiftEnd}` : '-',
+      qty, unit: 'pcs.', weight,
+      reject: rejectKg, porkKg, trimFatKg,
+      ingredients: plan ? plan.rows : [],
       staff: f.staff || '-'
     };
 
@@ -1224,8 +1232,12 @@ class Store {
 
     this.set(s => ({
       outputs: s.outputs.concat([record]),
-      // Keep the shift context — one operator usually logs a whole shift.
-      outputForm: { ...blankOutput(), date: f.date, shift: f.shift, unit: f.unit, staff: f.staff }
+      // Keep the work hours, unit choices and recorder — one operator usually logs a whole shift.
+      outputForm: {
+        ...blankOutput(), date: f.date, shiftStart: f.shiftStart, shiftEnd: f.shiftEnd,
+        weightUnit: f.weightUnit, rejectUnit: f.rejectUnit, porkUnit: f.porkUnit, trimFatUnit: f.trimFatUnit,
+        staff: f.staff
+      }
     }));
 
     const tail = issued.weight

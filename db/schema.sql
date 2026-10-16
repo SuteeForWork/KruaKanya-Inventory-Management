@@ -156,13 +156,17 @@ create table outputs (
   id           text primary key,     -- 'PD-260821-ขน'
   branch_id    text not null references branches(id),
   output_date  date not null,
-  shift        text,
+  shift        text,                 -- work-time range 'HH:MM–HH:MM' (older rows: 'กะเช้า 05:00–13:00')
   product      text not null,        -- matches recipes.product when a recipe exists
   qty          numeric not null,
   unit         text not null,
-  weight       numeric not null,
-  reject       numeric not null default 0,
-  staff_name   text
+  weight       numeric not null,     -- kg
+  reject       numeric not null default 0,  -- kg
+  staff_name   text,
+  -- db/migrations/010_output_pork_and_ingredients.sql
+  pork_kg           numeric,         -- total pork used, kg
+  trim_fat_kg       numeric,         -- pork fat trimmed off, kg
+  other_ingredients jsonb            -- snapshot: [{ code, name, unit, standard, used }]
 );
 
 create index outputs_branch_date_idx on outputs (branch_id, output_date desc);

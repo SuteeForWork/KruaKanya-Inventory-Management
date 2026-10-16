@@ -84,7 +84,9 @@ const toMove = row => ({
 const toOutput = row => ({
   branch: row.branch_id, id: row.id, date: row.output_date, shift: row.shift,
   product: row.product, qty: num(row.qty), unit: row.unit,
-  weight: num(row.weight), reject: num(row.reject), staff: row.staff_name
+  weight: num(row.weight), reject: num(row.reject), staff: row.staff_name,
+  porkKg: num(row.pork_kg), trimFatKg: num(row.trim_fat_kg),
+  ingredients: row.other_ingredients || []
 });
 
 /* -------------------------------------------------------------------------- */
@@ -344,7 +346,9 @@ export async function insertOutput(output) {
     id: output.id, branch_id: output.branch, output_date: output.date,
     shift: output.shift, product: output.product, qty: output.qty,
     unit: output.unit, weight: output.weight, reject: output.reject,
-    staff_name: output.staff
+    staff_name: output.staff,
+    pork_kg: output.porkKg, trim_fat_kg: output.trimFatKg,
+    other_ingredients: output.ingredients
   }), 'บันทึกผลผลิต');
 }
 

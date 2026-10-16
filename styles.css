@@ -381,11 +381,16 @@ input:focus, select:focus { outline: 2px solid #D2542B33; outline-offset: 1px; b
 .field { display: flex; flex-direction: column; gap: 5px; }
 .field__label { font-size: 11px; color: var(--ink-muted); }
 .field__label--lg { font-size: 11.5px; }
-.field > input, .field > select {
+.field > input, .field > select, .field__row > input, .field__row > select {
   border: 1px solid var(--line-strong); border-radius: 8px;
   padding: 8px 10px; font-size: 12px; background: var(--surface-input);
 }
-.field--mono > input { font-family: var(--mono); }
+.field--mono > input, .field--mono .field__row > input { font-family: var(--mono); }
+.field__row { display: flex; gap: 6px; align-items: center; }
+.field__row > input { flex: 1 1 0; min-width: 0; }
+.field__row > select { flex: 0 0 auto; }
+.field__row > .field__sep { color: var(--ink-muted); font-size: 11px; }
+@media (min-width: 900px) { .field--wide { grid-column: span 2; } }
 .field--accent > select { border-color: var(--accent); background: #FFF9F5; }
 .field--login > input, .field--login .field__control-wrap > input {
   border-radius: 9px; padding: 11px 12px; font-size: 13px; font-family: var(--mono);

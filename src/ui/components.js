@@ -116,12 +116,12 @@ export function meter(pct, tone, { value = null, stacked = false, footnote = nul
  * `data-bind` gives the renderer a stable handle so focus and caret survive the
  * re-render that every keystroke triggers.
  */
-export function inputField(label, form, field, opts = {}) {
-  const { type = 'text', placeholder = '', mono = false, variant = null, onInput = null, disabled = false } = opts;
+export function inputControl(form, field, opts = {}) {
+  const { type = 'text', placeholder = '', onInput = null, disabled = false } = opts;
   // `type: 'number'` is rendered as a filtered text input — see cleanDecimal().
   // inputmode keeps the numeric keypad with a decimal-point key on phones.
   const numeric = type === 'number';
-  const control = el('input', {
+  return el('input', {
     type: numeric ? 'text' : type,
     value: store.state[form][field] ?? '',
     placeholder,
@@ -134,15 +134,18 @@ export function inputField(label, form, field, opts = {}) {
       return onInput ? onInput(value) : store.setField(form, field, value);
     }
   });
+}
+
+export function inputField(label, form, field, opts = {}) {
+  const { mono = false, variant = null } = opts;
   return el('label', { class: ['field', mono && 'field--mono', variant && 'field--' + variant] },
     el('span', { class: 'field__label', text: label }),
-    control
+    inputControl(form, field, opts)
   );
 }
 
-/** A labelled select. `options` is `[{ value, label }]`. */
-export function selectField(label, form, field, options, opts = {}) {
-  const { placeholder = null, variant = null, onChange = null, disabled = false } = opts;
+export function selectControl(form, field, options, opts = {}) {
+  const { placeholder = null, onChange = null, disabled = false } = opts;
   const value = store.state[form][field] ?? '';
   const control = el('select', {
     disabled,
@@ -153,9 +156,23 @@ export function selectField(label, form, field, options, opts = {}) {
     options.map(o => el('option', { value: o.value, selected: o.value === value, text: o.label }))
   );
   control.value = value;
+  return control;
+}
+
+/** A labelled select. `options` is `[{ value, label }]`. */
+export function selectField(label, form, field, options, opts = {}) {
+  const { variant = null } = opts;
   return el('label', { class: ['field', variant && 'field--' + variant] },
     el('span', { class: 'field__label', text: label }),
-    control
+    selectControl(form, field, options, opts)
+  );
+}
+
+/** One label over several controls side by side — a value plus its unit, or a from–to pair. */
+export function compoundField(label, ...controls) {
+  return el('label', { class: ['field', 'field--mono', controls.length > 2 && 'field--wide'] },
+    el('span', { class: 'field__label', text: label }),
+    el('div', { class: 'field__row' }, ...controls)
   );
 }
 

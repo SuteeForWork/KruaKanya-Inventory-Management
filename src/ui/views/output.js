@@ -2,14 +2,14 @@
 
 import { el, when } from '../dom.js';
 import {
-  badge, card, fieldGrid, formCard, inputField, meter, selectField,
+  badge, card, compoundField, fieldGrid, formCard, inputControl, inputField, meter, selectControl, selectField,
   statCard, submitRow, table, td, tdCode, tdNum, tr
 } from '../components.js';
-import { store, SHIFTS } from '../../core/store.js';
+import { store } from '../../core/store.js';
 import { baht, kg, kgNum, n, shortDate } from '../../core/format.js';
 import { today } from '../../config.js';
 import { issuedOn, scopedOutputs } from '../../core/inventory.js';
-import { dailyProduction, outputFigures, yieldStatus, yieldTarget } from '../../core/production.js';
+import { dailyProduction, outputFigures, outputIngredients, yieldStatus, yieldTarget } from '../../core/production.js';
 
 const DAILY_HEAD = [
   'วันที่', 'สินค้าที่ผลิต', 'จำนวนผลิตได้ (คละหน่วย)|R', 'น้ำหนักผลผลิต (กก.)|R',
@@ -18,9 +18,47 @@ const DAILY_HEAD = [
 ];
 
 const RECORD_HEAD = [
-  'วันที่', 'กะการผลิต', 'สินค้า / เมนู', 'จำนวนที่ผลิตได้|R',
-  'น้ำหนักผลผลิต (กก.)|R', 'ของเสีย (กก.)|R', 'น้ำหนักต่อหน่วย|R', 'ผู้บันทึก'
+  'วันที่', 'ช่วงเวลาทำงาน', 'สินค้า / เมนู', 'จำนวนที่ผลิตได้|R',
+  'น้ำหนักผลผลิต (กก.)|R', 'ของเสีย (กก.)|R', 'หมูที่ใช้ (กก.)|R', 'มันหมูตัดแต่ง (กก.)|R',
+  'วัตถุดิบอื่นๆ', 'น้ำหนักต่อหน่วย|R', 'ผู้บันทึก'
 ];
+
+const WEIGHT_UNITS = [{ value: 'g', label: 'กรัม' }, { value: 'kg', label: 'กิโลกรัม' }];
+
+/** A weight typed in g or kg — stored in kg, see outputFigures(). */
+function weightField(label, form, field, placeholder) {
+  return compoundField(label,
+    inputControl(form, field, { type: 'number', placeholder }),
+    selectControl(form, field + 'Unit', WEIGHT_UNITS)
+  );
+}
+
+/** The BOM's other ingredients for this run, scaled to the pork actually used. */
+function ingredientsPanel(state) {
+  const f = state.outputForm;
+  const plan = f.product ? outputIngredients(state, f) : null;
+
+  let body;
+  if (!plan) {
+    body = el('div', { class: 'card__note', text: 'เลือกสินค้าจากสูตร BOM เพื่อดูยอดวัตถุดิบอื่นๆ' });
+  } else if (!plan.rows.length) {
+    body = el('div', { class: 'card__note', text: 'สูตรนี้ไม่มีวัตถุดิบอื่นนอกจากเนื้อสัตว์' });
+  } else {
+    const scaled = plan.standardPork > 0 && Number(f.pork) > 0;
+    body = table(
+      ['วัตถุดิบอื่นๆ', 'ตามสูตร|R', scaled ? `ปรับตามน้ำหนักหมู (×${n(plan.scale, 3)})|R` : 'ที่ใช้|R'],
+      plan.rows.map(r => tr(
+        td(r.name),
+        tdNum(`${n(r.standard, 3)} ${r.unit}`),
+        tdNum(`${n(r.used, 3)} ${r.unit}`)
+      ))
+    );
+  }
+  return el('div', { class: 'stack', style: { gap: '6px', marginTop: '14px' } },
+    el('div', { class: 'field__label', text: 'ยอดวัตถุดิบอื่นๆ (ดึงจากสูตร BOM อัตโนมัติ · ปรับตามน้ำหนักหมูที่ใช้จริง)' }),
+    body
+  );
+}
 
 /** Outputs can be counted in boxes, loaves or pounds — show each unit separately. */
 function unitBreakdown(outputs) {
@@ -77,38 +115,36 @@ function stats(state, daily) {
   ];
 }
 
-/** A computed figure shown in the form's grid — same look as a field, but not typeable. */
-function calculatedField(label, value) {
-  return el('label', { class: 'field field--mono' },
-    el('span', { class: 'field__label', text: label }),
-    el('input', { value, readonly: true, tabindex: '-1' })
-  );
-}
-
 function form(state) {
   const f = state.outputForm;
   const issued = issuedOn(state, f.date);
-  const { qty, weightG, rejectG, weightKg } = outputFigures(f);
+  const { qty, weightKg } = outputFigures(f);
   const pct = issued.weight ? (weightKg / issued.weight) * 100 : 0;
   const status = yieldStatus(pct);
+  const recipeOptions = state.recipes.map(r => ({ value: r.product, label: r.product }));
 
   return formCard({
     title: 'บันทึกยอดที่ผลิตได้',
-    note: 'น้ำหนักรวม = จำนวนที่ผลิตได้ × น้ำหนักต่อชิ้น · ของเสียทั้งหมด = มันหมูที่ตัดแต่ง + ข้าวที่เหลือ · เทียบกับวัตถุดิบที่เบิกออกในวันเดียวกันอัตโนมัติ'
+    note: 'ระบบจะเทียบกับน้ำหนักวัตถุดิบที่เบิกออกในวันเดียวกันอัตโนมัติ'
   },
     fieldGrid('sm',
       inputField('วันที่ผลิต', 'outputForm', 'date', { type: 'date' }),
-      selectField('กะการผลิต', 'outputForm', 'shift', SHIFTS.map(v => ({ value: v, label: v }))),
-      inputField('สินค้า / เมนูที่ผลิต', 'outputForm', 'product', { placeholder: 'เช่น ข้าวกล่องไก่ย่าง' }),
-      inputField('จำนวนที่ผลิตได้', 'outputForm', 'qty', { type: 'number', placeholder: '240', mono: true }),
-      inputField('หน่วยผลผลิต', 'outputForm', 'unit', { placeholder: 'กล่อง / ถาด / ชิ้น' }),
-      inputField('น้ำหนักต่อชิ้น (กรัม)', 'outputForm', 'unitWeight', { type: 'number', placeholder: '258', mono: true }),
-      calculatedField('น้ำหนักผลผลิตรวม (กรัม)', weightG ? n(weightG, 1) : ''),
-      inputField('มันหมูที่ตัดแต่งทั้งหมด (กรัม)', 'outputForm', 'trimFat', { type: 'number', placeholder: '0', mono: true }),
-      inputField('ข้าวที่เหลือจากการ Vacuum Seal (กรัม)', 'outputForm', 'riceLeft', { type: 'number', placeholder: '0', mono: true }),
-      calculatedField('ของเสียจากการผลิตทั้งหมด (กรัม)', rejectG ? n(rejectG, 1) : ''),
+      compoundField('ช่วงเวลาทำงาน (เริ่ม – เลิก)',
+        inputControl('outputForm', 'shiftStart', { type: 'time' }),
+        el('span', { class: 'field__sep', text: 'ถึง' }),
+        inputControl('outputForm', 'shiftEnd', { type: 'time' })
+      ),
+      selectField('สินค้า / เมนูที่ผลิต (จากสูตร BOM)', 'outputForm', 'product', recipeOptions, {
+        placeholder: recipeOptions.length ? '— เลือกจากสูตร BOM —' : '— ยังไม่มีสูตร BOM —'
+      }),
+      inputField('FG ที่ผลิตได้ (pcs.)', 'outputForm', 'qty', { type: 'number', placeholder: '240', mono: true }),
+      weightField('น้ำหนักการผลิตทั้งหมด', 'outputForm', 'weight', '62000'),
+      weightField('น้ำหนักสูญเสียทั้งหมด', 'outputForm', 'reject', '0'),
+      weightField('น้ำหนักหมูที่ใช้ทั้งหมด', 'outputForm', 'pork', '0'),
+      weightField('น้ำหนักมันหมูที่ตัดแต่งออกทั้งหมด', 'outputForm', 'trimFat', '0'),
       inputField('ผู้บันทึก', 'outputForm', 'staff', { placeholder: 'เช่น เชฟกวิน ร.' })
     ),
+    ingredientsPanel(state),
     submitRow(
       el('div', { class: 'summary' },
         el('div', null,
@@ -161,6 +197,11 @@ function recordRows(state) {
       tdNum(`${n(o.qty)} ${o.unit}`),
       tdNum(kgNum(o.weight)),
       tdNum(o.reject ? kgNum(o.reject) : '—'),
+      tdNum(o.porkKg ? kgNum(o.porkKg) : '—'),
+      tdNum(o.trimFatKg ? kgNum(o.trimFatKg) : '—'),
+      td((o.ingredients || []).length
+        ? (o.ingredients || []).map(i => `${i.name} ${n(i.used, 3)} ${i.unit}`).join(' · ')
+        : '—'),
       tdNum(`${n((o.weight / o.qty) * 1000, 0)} ก.`),
       td(o.staff)
     ));

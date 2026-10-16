@@ -5,6 +5,7 @@
  */
 
 import { config } from '../config.js';
+import { toKg } from './format.js';
 import { availableKg, issuedOn, pricePerKg, scopedOutputs, scopedMoves } from './inventory.js';
 
 /* -------------------------------------------------------------------------- */
@@ -74,17 +75,56 @@ export function capacityOf(state, recipe) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The grams the production form works in, and the kg that get stored.
- * Total weight = pieces × weight per piece; total waste = trimmed pork fat +
- * rice left over from vacuum sealing. Both totals are derived, never typed —
- * outputs.weight / outputs.reject (and every yield figure built on them)
- * stay in kg, so the conversion happens here, once.
+ * Each weight on the production form is typed in g or kg (its own unit
+ * toggle); outputs.weight / outputs.reject / pork_kg / trim_fat_kg — and
+ * every yield figure built on them — are kg, so the conversion happens here,
+ * once.
  */
 export function outputFigures(form) {
+  return {
+    qty: Number(form.qty) || 0,
+    weightKg: toKg(form.weight, form.weightUnit),
+    rejectKg: toKg(form.reject, form.rejectUnit),
+    porkKg: toKg(form.pork, form.porkUnit),
+    trimFatKg: toKg(form.trimFat, form.trimFatUnit)
+  };
+}
+
+/** The item category that marks a BOM line as the pork (meat) the form's "pork used" figure refers to. */
+const MEAT_CATEGORY = 'เนื้อสัตว์';
+
+/**
+ * The other ingredients of the chosen BOM recipe for this run, scaled by how
+ * much pork was actually used against what the recipe calls for. The pork is
+ * the BOM lines whose item category is MEAT_CATEGORY — matched by category,
+ * not name, since a seasoning like "รสดีหมู" has หมู in its name too. Until a
+ * pork weight is typed (or if the recipe has no meat line) nothing scales and
+ * these are simply the recipe's standard amounts for the pieces produced.
+ * Quantities are the BOM's own unit: kg, or the item's unit for a
+ * count-tracked ingredient.
+ */
+export function outputIngredients(state, form) {
+  const recipe = recipeFor(state, form.product);
+  if (!recipe) return null;
+
   const qty = Number(form.qty) || 0;
-  const weightG = qty * (Number(form.unitWeight) || 0);
-  const rejectG = (Number(form.trimFat) || 0) + (Number(form.riceLeft) || 0);
-  return { qty, weightG, rejectG, weightKg: weightG / 1000, rejectKg: rejectG / 1000 };
+  const porkKg = toKg(form.pork, form.porkUnit);
+  const itemOf = code => state.items.find(i => i.code === code);
+  const isMeat = line => (itemOf(line.code) || {}).category === MEAT_CATEGORY;
+
+  const standardPork = recipe.lines.filter(isMeat).reduce((a, l) => a + l.qty, 0) * qty;
+  const scale = standardPork > 0 && porkKg > 0 ? porkKg / standardPork : 1;
+
+  const rows = recipe.lines.filter(l => !isMeat(l)).map(l => {
+    const item = itemOf(l.code);
+    const standard = l.qty * qty;
+    return {
+      code: l.code, name: item ? item.name : l.code,
+      unit: item && item.trackBy === 'count' ? item.unit : 'กก.',
+      standard, used: standard * scale
+    };
+  });
+  return { recipe, rows, scale, standardPork };
 }
 
 export function yieldTarget() {
