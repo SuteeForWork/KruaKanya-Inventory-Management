@@ -1337,7 +1337,11 @@ class Store {
       id, product: f.product, unit: f.unit || 'หน่วย',
       net: f.net || plan.kg,
       capPerDay: Number(f.capPerDay) || 0,
-      lines: plan.lines.map(l => ({ code: l.code, qty: Number(l.qty), prepQty: l.prepQty ?? null }))
+      // A prep step that changes nothing (0%) isn't a prep figure — don't store it.
+      lines: plan.lines.map(l => ({
+        code: l.code, qty: Number(l.qty),
+        prepQty: l.prepQty != null && l.prepQty !== Number(l.qty) ? l.prepQty : null
+      }))
     };
 
     const ok = await this.persist('บันทึกสูตร', () => db.insertRecipe(recipe));
