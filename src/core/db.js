@@ -341,15 +341,47 @@ export async function insertTransferLot(lot, supplierId) {
   }), 'บันทึกล็อตรับโอน');
 }
 
+/**
+ * pork_kg / trim_fat_kg / other_ingredients come from migration 010. They are
+ * only sent when a record actually has something in them, so saving an
+ * ordinary output keeps working on a database that hasn't had the migration
+ * yet; one that does need them gets a plain explanation instead of a raw
+ * "column not found" error.
+ */
+export const hasOutputExtras = o => Boolean(o.porkKg || o.trimFatKg || (o.ingredients && o.ingredients.length));
+
+const outputExtras = o => ({
+  pork_kg: o.porkKg || null, trim_fat_kg: o.trimFatKg || null,
+  other_ingredients: o.ingredients && o.ingredients.length ? o.ingredients : null
+});
+
+function checkOutputColumns(result) {
+  if (result.error && /pork_kg|trim_fat_kg|other_ingredients/.test(result.error.message)) {
+    throw new Error('ฐานข้อมูลยังไม่มีคอลัมน์สำหรับหมู/วัตถุดิบอื่น — ต้องรัน db/migrations/010_output_pork_and_ingredients.sql ก่อน');
+  }
+  return result;
+}
+
 export async function insertOutput(output) {
-  must(await supabase.from('outputs').insert({
+  must(checkOutputColumns(await supabase.from('outputs').insert({
     id: output.id, branch_id: output.branch, output_date: output.date,
     shift: output.shift, product: output.product, qty: output.qty,
     unit: output.unit, weight: output.weight, reject: output.reject,
     staff_name: output.staff,
-    pork_kg: output.porkKg, trim_fat_kg: output.trimFatKg,
-    other_ingredients: output.ingredients
-  }), 'บันทึกผลผลิต');
+    ...(hasOutputExtras(output) ? outputExtras(output) : {})
+  })), 'บันทึกผลผลิต');
+}
+
+/** Corrects a saved production record — id, branch and unit stay as they were.
+ *  `withExtras` is true when the record has, or used to have, pork/ingredient
+ *  data, so clearing those figures really clears them. */
+export async function updateOutput(id, output, withExtras) {
+  must(checkOutputColumns(await supabase.from('outputs').update({
+    output_date: output.date, shift: output.shift, product: output.product,
+    qty: output.qty, weight: output.weight, reject: output.reject,
+    staff_name: output.staff,
+    ...(withExtras ? outputExtras(output) : {})
+  }).eq('id', id)), 'แก้ไขผลผลิต');
 }
 
 /* -------------------------------------------------------------------------- */

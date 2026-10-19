@@ -2,7 +2,7 @@
 
 import { el, when } from '../dom.js';
 import {
-  badge, card, compoundField, fieldGrid, formCard, inputControl, inputField, meter, selectControl, selectField,
+  badge, card, compoundField, confirmAction, fieldGrid, formCard, inputControl, inputField, meter, selectControl, selectField,
   statCard, submitRow, table, td, tdCode, tdNum, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
@@ -20,7 +20,7 @@ const DAILY_HEAD = [
 const RECORD_HEAD = [
   'วันที่', 'ช่วงเวลาทำงาน', 'สินค้า / เมนู', 'จำนวนที่ผลิตได้|R',
   'น้ำหนักผลผลิต (กก.)|R', 'ของเสีย (กก.)|R', 'หมูที่ใช้ (กก.)|R', 'มันหมูตัดแต่ง (กก.)|R',
-  'วัตถุดิบอื่นๆ', 'น้ำหนักต่อหน่วย|R', 'ผู้บันทึก'
+  'วัตถุดิบอื่นๆ', 'น้ำหนักต่อหน่วย|R', 'ผู้บันทึก', ''
 ];
 
 const WEIGHT_UNITS = [{ value: 'g', label: 'กรัม' }, { value: 'kg', label: 'กิโลกรัม' }];
@@ -115,17 +115,35 @@ function stats(state, daily) {
   ];
 }
 
+function productField(state) {
+  const f = state.outputForm;
+  const options = state.recipes.map(r => ({ value: r.product, label: r.product }));
+  // No BOM yet: let the name be typed so recording isn't blocked on setting recipes up first.
+  if (!options.length) {
+    return inputField('สินค้า / เมนูที่ผลิต', 'outputForm', 'product', { placeholder: 'ยังไม่มีสูตร BOM — พิมพ์ชื่อสินค้าไปก่อน' });
+  }
+  // A record saved before its recipe existed (or since renamed) must stay selectable when edited.
+  if (f.product && !options.some(o => o.value === f.product)) {
+    options.push({ value: f.product, label: `${f.product} (ไม่อยู่ในสูตร BOM)` });
+  }
+  return selectField('สินค้า / เมนูที่ผลิต (จากสูตร BOM)', 'outputForm', 'product', options, {
+    placeholder: '— เลือกจากสูตร BOM —'
+  });
+}
+
 function form(state) {
   const f = state.outputForm;
+  const editing = state.editingOutput;
   const issued = issuedOn(state, f.date);
   const { qty, weightKg } = outputFigures(f);
   const pct = issued.weight ? (weightKg / issued.weight) * 100 : 0;
   const status = yieldStatus(pct);
-  const recipeOptions = state.recipes.map(r => ({ value: r.product, label: r.product }));
 
-  return formCard({
-    title: 'บันทึกยอดที่ผลิตได้',
-    note: 'ระบบจะเทียบกับน้ำหนักวัตถุดิบที่เบิกออกในวันเดียวกันอัตโนมัติ'
+  const node = formCard({
+    title: editing ? `แก้ไขผลผลิต · ${editing}` : 'บันทึกยอดที่ผลิตได้',
+    note: editing
+      ? 'น้ำหนักที่โหลดมาเป็นกิโลกรัม — เปลี่ยนหน่วยของช่องเป็นกรัมได้ ถ้าเดิมกรอกเป็นกรัม'
+      : 'ระบบจะเทียบกับน้ำหนักวัตถุดิบที่เบิกออกในวันเดียวกันอัตโนมัติ'
   },
     fieldGrid('sm',
       inputField('วันที่ผลิต', 'outputForm', 'date', { type: 'date' }),
@@ -134,9 +152,7 @@ function form(state) {
         el('span', { class: 'field__sep', text: 'ถึง' }),
         inputControl('outputForm', 'shiftEnd', { type: 'time' })
       ),
-      selectField('สินค้า / เมนูที่ผลิต (จากสูตร BOM)', 'outputForm', 'product', recipeOptions, {
-        placeholder: recipeOptions.length ? '— เลือกจากสูตร BOM —' : '— ยังไม่มีสูตร BOM —'
-      }),
+      productField(state),
       inputField('FG ที่ผลิตได้ (pcs.)', 'outputForm', 'qty', { type: 'number', placeholder: '240', mono: true }),
       weightField('น้ำหนักการผลิตทั้งหมด', 'outputForm', 'weight', '62000'),
       weightField('น้ำหนักสูญเสียทั้งหมด', 'outputForm', 'reject', '0'),
@@ -160,9 +176,20 @@ function form(state) {
           el('div', { class: 'summary__value summary__value--cost', text: qty && issued.cost ? baht(issued.cost / qty, 2) : '—' })
         )
       ),
-      el('button', { class: 'btn btn--primary btn--submit', text: 'บันทึกผลผลิต', onClick: () => store.submitOutput() })
+      el('div', { class: 'row', style: { gap: '8px' } },
+        el('button', {
+          class: 'btn btn--primary btn--submit', text: editing ? 'บันทึกการแก้ไข' : 'บันทึกผลผลิต',
+          onClick: () => {
+            if (editing && !confirmAction(`ยืนยันบันทึกการแก้ไขผลผลิต ${editing}?`)) return;
+            store.submitOutput();
+          }
+        }),
+        when(editing, () => el('button', { class: 'btn', text: 'ยกเลิก', onClick: () => store.cancelEditOutput() }))
+      )
     )
   );
+  node.id = 'output-form';
+  return node;
 }
 
 function dailyRows(daily) {
@@ -203,7 +230,15 @@ function recordRows(state) {
         ? (o.ingredients || []).map(i => `${i.name} ${n(i.used, 3)} ${i.unit}`).join(' · ')
         : '—'),
       tdNum(`${n((o.weight / o.qty) * 1000, 0)} ก.`),
-      td(o.staff)
+      td(o.staff),
+      td(when(store.canEdit('output'), () => el('button', {
+        class: 'btn btn--small', text: 'แก้ไข',
+        onClick: () => {
+          store.startEditOutput(o.id);
+          const form = document.getElementById('output-form');
+          if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      })))
     ));
 }
 

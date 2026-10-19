@@ -180,7 +180,9 @@ class Store {
       // see saveMoveDateTime().
       editingMoveDoc: null,
       editMoveDate: '',
-      editMoveTime: ''
+      editMoveTime: '',
+      // Which production record is loaded into the output form for correction.
+      editingOutput: null
     };
   }
 
@@ -1194,30 +1196,79 @@ class Store {
 
   /* ---- production output ------------------------------------------------ */
 
+  /**
+   * Loads a saved production record into the form. Weights are stored in kg,
+   * so they come back in kg — switch a field's unit to g to retype one that
+   * was entered in the wrong unit. The work hours are read back out of the
+   * stored 'HH:MM–HH:MM' text (older rows: 'กะเช้า 05:00–13:00').
+   */
+  startEditOutput(id) {
+    if (!this.guard('output')) return;
+    const o = this.state.outputs.find(x => x.id === id);
+    if (!o) return;
+    const times = String(o.shift || '').match(/\d{1,2}:\d{2}/g) || [];
+    const kgText = v => (v ? String(v) : '');
+    this.set({
+      editingOutput: id,
+      outputForm: {
+        date: o.date, shiftStart: times[0] || '', shiftEnd: times[1] || '',
+        product: o.product, qty: String(o.qty),
+        weight: kgText(o.weight), weightUnit: 'kg',
+        reject: kgText(o.reject), rejectUnit: 'kg',
+        pork: kgText(o.porkKg), porkUnit: 'kg',
+        trimFat: kgText(o.trimFatKg), trimFatUnit: 'kg',
+        staff: o.staff === '-' ? '' : o.staff
+      }
+    });
+  }
+
+  cancelEditOutput() {
+    this.set({ editingOutput: null, outputForm: blankOutput() });
+  }
+
   async submitOutput() {
-    if (!this.guard('output') || !this.requireBranch()) return;
+    if (!this.guard('output')) return;
+    const editingId = this.state.editingOutput;
+    if (!editingId && !this.requireBranch()) return;
 
     const f = this.state.outputForm;
     const { qty, weightKg: weight, rejectKg, porkKg, trimFatKg } = outputFigures(f);
-    if (!this.state.recipes.length) {
-      this.say('ยังไม่มีสูตร BOM — เพิ่มสูตรที่หน้า "เมนู & สูตร (BOM)" ก่อน แล้วจึงเลือกสินค้าที่ผลิตได้', true);
-      return;
-    }
     if (!f.product || !qty || !weight) {
-      this.say('กรอกไม่ครบ — ต้องเลือกสินค้าจากสูตร BOM และกรอกจำนวนที่ผลิตได้ กับน้ำหนักการผลิตทั้งหมด', true);
+      this.say('กรอกไม่ครบ — ต้องมีสินค้า จำนวนที่ผลิตได้ และน้ำหนักการผลิตทั้งหมด', true);
       return;
     }
 
+    const original = editingId ? this.state.outputs.find(o => o.id === editingId) : null;
+    if (editingId && !original) { this.cancelEditOutput(); return; }
+
     const plan = outputIngredients(this.state, f);
+    const fields = {
+      date: f.date, product: f.product,
+      shift: f.shiftStart && f.shiftEnd ? `${f.shiftStart}–${f.shiftEnd}` : '-',
+      qty, weight, reject: rejectKg, porkKg, trimFatKg,
+      // A recipe no longer in the BOM can't be recomputed — keep what the record already had.
+      ingredients: plan ? plan.rows : (original ? original.ingredients || [] : []),
+      staff: f.staff || '-'
+    };
+
+    if (original) {
+      const record = { ...original, ...fields };
+      const withExtras = db.hasOutputExtras(record) || db.hasOutputExtras(original);
+      const ok = await this.persist('แก้ไขผลผลิต', () => db.updateOutput(editingId, record, withExtras));
+      if (!ok) return;
+      this.set(s => ({
+        outputs: s.outputs.map(o => (o.id === editingId ? record : o)),
+        editingOutput: null, outputForm: blankOutput()
+      }));
+      this.say(`แก้ไข ${editingId} · ${record.product} เรียบร้อย`);
+      return;
+    }
+
     const record = {
       branch: this.state.branch,
       id: 'PD-' + f.date.slice(2).replace(/-/g, '') + '-' + (this.state.outputs.length + 1),
-      date: f.date, product: f.product,
-      shift: f.shiftStart && f.shiftEnd ? `${f.shiftStart}–${f.shiftEnd}` : '-',
-      qty, unit: 'pcs.', weight,
-      reject: rejectKg, porkKg, trimFatKg,
-      ingredients: plan ? plan.rows : [],
-      staff: f.staff || '-'
+      unit: 'pcs.',
+      ...fields
     };
 
     const ok = await this.persist('บันทึกผลผลิต', () => db.insertOutput(record));
