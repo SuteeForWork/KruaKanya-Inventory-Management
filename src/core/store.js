@@ -90,9 +90,11 @@ const blankOutput = () => ({
   staff: 'เชฟกวิน ร.'
 });
 
+const blankRecipeLine = () => ({ code: '', qty: '', pct: '', prepType: 'loss' });
+
 const blankRecipe = () => ({
   product: '', unit: 'กล่อง', net: '', capPerDay: '',
-  lines: [{ code: '', qty: '', prep: '' }, { code: '', qty: '', prep: '' }, { code: '', qty: '', prep: '' }]
+  lines: [blankRecipeLine(), blankRecipeLine(), blankRecipeLine()]
 });
 
 const blankSupplier = () => ({ name: '', category: '', contact: '', phone: '', terms: '', cert: '' });
@@ -1300,7 +1302,7 @@ class Store {
   /* ---- recipes ---------------------------------------------------------- */
 
   addRecipeLine() {
-    this.set(s => ({ recipeForm: { ...s.recipeForm, lines: s.recipeForm.lines.concat([{ code: '', qty: '', prep: '' }]) } }));
+    this.set(s => ({ recipeForm: { ...s.recipeForm, lines: s.recipeForm.lines.concat([blankRecipeLine()]) } }));
   }
 
   setRecipeLine(index, field, value) {
@@ -1323,10 +1325,10 @@ class Store {
       this.say('ต้องระบุชื่อเมนู และวัตถุดิบในสูตรอย่างน้อย 1 รายการ', true);
       return;
     }
-    const overPrep = plan.lines.find(l => l.prepQty != null && l.prepQty > l.qty);
-    if (overPrep) {
-      const item = this.state.items.find(i => i.code === overPrep.code);
-      this.say(`${item ? item.name : overPrep.code}: น้ำหนักหลังเตรียมต้องไม่มากกว่าก่อนเตรียม`, true);
+    const overLoss = plan.lines.find(l => l.prepQty != null && l.prepQty < 0);
+    if (overLoss) {
+      const item = this.state.items.find(i => i.code === overLoss.code);
+      this.say(`${item ? item.name : overLoss.code}: % สูญเสียต้องไม่เกิน 100`, true);
       return;
     }
 
@@ -1341,7 +1343,7 @@ class Store {
     const ok = await this.persist('บันทึกสูตร', () => db.insertRecipe(recipe));
     if (!ok) return;
     this.set(s => ({ recipes: s.recipes.concat([recipe]), recipeForm: blankRecipe() }));
-    this.say(`บันทึกสูตร ${id} · ${f.product} · วัตถุดิบ ${gram(plan.kg)} กรัม/หน่วย${plan.hasPrep ? ` (ทิ้งจากการเตรียม ${gram(plan.wasteKg)} กรัม)` : ''} · ต้นทุนมาตรฐาน ${baht(plan.cost, 2)}`);
+    this.say(`บันทึกสูตร ${id} · ${f.product} · วัตถุดิบ ${gram(plan.kg)} กรัม/หน่วย${plan.hasPrep && plan.wasteKg > 0 ? ` (ทิ้งจากการเตรียม ${gram(plan.wasteKg)} กรัม)` : ''} · ต้นทุนมาตรฐาน ${baht(plan.cost, 2)}`);
   }
 
   /* ---- suppliers -------------------------------------------------------- */

@@ -6,10 +6,12 @@
 -- ingredients lose weight in prep — e.g. 1000 g of pork is 850 g once the
 -- fat is trimmed — so a line can now also record what's left after prep:
 --
---   prep_qty — kg usable after prep, per unit of output. Null means no prep
---              loss recorded (treated as equal to qty). Never above qty.
+--   prep_qty — kg after prep, per unit of output. The form takes the before-prep
+--              weight and a % lost or gained and works this out; it is stored as
+--              the resulting weight, so it can be below qty (trimming) or above
+--              it (rice swelling in soaking). Null means no prep step recorded.
 --
--- The waste from prep (qty - prep_qty, and its %) is derived, not stored —
+-- The loss/gain from prep (qty - prep_qty, and its %) is derived, not stored —
 -- see src/core/production.js#recipePlan.
 --
 -- Safe to run against a live database: adds one nullable column, touches

@@ -420,16 +420,21 @@ input:focus, select:focus { outline: 2px solid #D2542B33; outline-offset: 1px; b
 }
 .field--action { display: flex; align-items: flex-end; }
 
-.recipe-line { display: grid; grid-template-columns: 1fr 132px 132px 150px; gap: 9px; align-items: center; }
-.recipe-line > select, .recipe-line > input {
+.recipe-line { display: grid; grid-template-columns: 1fr 118px 168px 118px 150px; gap: 9px; align-items: center; }
+.recipe-line > select, .recipe-line > input, .recipe-line__pct > select, .recipe-line__pct > input {
   border: 1px solid var(--line-strong); border-radius: 8px;
   padding: 8px 10px; font-size: 12px; background: var(--surface-input);
 }
-.recipe-line > input { font-family: var(--mono); }
-.recipe-line > input:disabled { background: var(--surface-head); opacity: .6; }
+.recipe-line > input, .recipe-line__pct > input { font-family: var(--mono); }
+.recipe-line input:disabled, .recipe-line select:disabled, .recipe-line__calc { background: var(--surface-head); }
+.recipe-line input:disabled, .recipe-line select:disabled { opacity: .6; }
+.recipe-line__pct { display: flex; gap: 4px; min-width: 0; }
+.recipe-line__pct > input { flex: 1 1 0; min-width: 0; width: 100%; }
+.recipe-line__pct > select { flex: 0 0 auto; }
 .recipe-line__cost { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); text-align: right; }
 @media (max-width: 720px) {
   .recipe-line { grid-template-columns: 1fr 1fr; }
+  .recipe-line__pct { grid-column: 1 / -1; }
   .recipe-line > select { grid-column: 1 / -1; }
   .recipe-line__cost { grid-column: 1 / -1; text-align: left; }
 }

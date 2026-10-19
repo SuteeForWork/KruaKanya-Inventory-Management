@@ -52,13 +52,24 @@ export function recipeFromForm(state, form) {
   return {
     ...form,
     net: toKg(form.net, 'g'),
-    lines: (form.lines || []).map(l => ({
-      ...l,
-      qty: bomQtyFromInput(state, l.code, l.qty),
-      // After-prep weight — only meaningful for a weighed ingredient, and only when typed.
-      prepQty: isCounted(state, l.code) || l.prep === undefined || String(l.prep).trim() === '' ? null : toKg(l.prep, 'g')
-    }))
+    lines: (form.lines || []).map(l => {
+      const qty = bomQtyFromInput(state, l.code, l.qty);
+      return { ...l, qty, prepQty: prepQtyFromInput(state, l, qty) };
+    })
   };
+}
+
+/**
+ * After-prep weight from the before-prep weight and the typed % change:
+ * after = before x (1 - loss%) or before x (1 + gain%). Only a weighed
+ * ingredient has a prep step, and only once a % is typed — otherwise null.
+ * A loss over 100% comes out negative; addRecipe refuses it.
+ */
+function prepQtyFromInput(state, line, qty) {
+  if (isCounted(state, line.code)) return null;
+  if (line.pct === undefined || String(line.pct).trim() === '') return null;
+  const pct = Number(line.pct) || 0;
+  return qty * (line.prepType === 'gain' ? 1 + pct / 100 : 1 - pct / 100);
 }
 
 /**
@@ -71,9 +82,10 @@ export function recipePlan(state, recipe) {
   const lines = (recipe.lines || []).filter(l => l.code && Number(l.qty) > 0);
   const weighed = lines.filter(l => !isCounted(state, l.code));
   const kg = weighed.reduce((a, l) => a + Number(l.qty), 0);
-  // What's left after prep (a line with no prep figure loses nothing). Waste
-  // from prep is the difference — 1000 g of pork that is 850 g once the fat is
-  // trimmed wastes 150 g (15%).
+  // What's left after prep (a line with no prep figure changes nothing). The
+  // difference is positive for a loss — 1000 g of pork that is 850 g once the
+  // fat is trimmed loses 150 g (15%) — and negative for a gain (rice that
+  // swells in soaking).
   const prepKg = weighed.reduce((a, l) => a + (l.prepQty != null ? Number(l.prepQty) : Number(l.qty)), 0);
   return {
     lines, kg, prepKg,
