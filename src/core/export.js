@@ -70,14 +70,14 @@ const BUILDERS = {
   },
 
   recipe(state) {
-    const header = ['รหัสสูตร', 'เมนู', 'หน่วยผลผลิต', 'วัตถุดิบในสูตร', 'วัตถุดิบต่อหน่วย(กรัม)', 'ผลผลิตสุทธิต่อหน่วย(กรัม)', 'Yield มาตรฐาน(%)', 'ต้นทุนมาตรฐานต่อหน่วย', 'ผลิตได้จากสต๊อก(หน่วย)', 'กำลังผลิตต่อวัน(หน่วย)', 'ผลิตได้สูงสุด(หน่วย)', 'ข้อจำกัด'];
+    const header = ['รหัสสูตร', 'เมนู', 'หน่วยผลผลิต', 'วัตถุดิบในสูตร', 'วัตถุดิบต่อหน่วย(กรัม)', 'ของเสียจากการเตรียมต่อหน่วย(กรัม)', 'ผลผลิตสุทธิต่อหน่วย(กรัม)', 'Yield มาตรฐาน(%)', 'ต้นทุนมาตรฐานต่อหน่วย', 'ผลิตได้จากสต๊อก(หน่วย)', 'กำลังผลิตต่อวัน(หน่วย)', 'ผลิตได้สูงสุด(หน่วย)', 'ข้อจำกัด'];
     return [header].concat(state.recipes.map(r => {
       const plan = recipePlan(state, r);
       const cap = capacityOf(state, r);
       return [
         r.id, r.product, r.unit,
         plan.lines.map(l => `${l.code} ${amountText(l.qty, bomLineUnit(state, l.code).counted ? (state.items.find(i => i.code === l.code) || {}).unit : 'กก.')}`).join(' + '),
-        num(plan.kg * 1000, 1), num(r.net * 1000, 1),
+        num(plan.kg * 1000, 1), plan.hasPrep ? num(plan.wasteKg * 1000, 1) : '-', num(r.net * 1000, 1),
         plan.kg ? num(standardYield(r, plan), 1) : '-',
         num(plan.cost, 2), cap.stockUnits, r.capPerDay || '-', cap.units,
         cap.bound === 'กำลังผลิต' ? 'กำลังผลิตต่อวัน' : limitText(cap)

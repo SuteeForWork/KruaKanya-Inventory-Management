@@ -420,13 +420,19 @@ input:focus, select:focus { outline: 2px solid #D2542B33; outline-offset: 1px; b
 }
 .field--action { display: flex; align-items: flex-end; }
 
-.recipe-line { display: grid; grid-template-columns: 1fr 140px 96px; gap: 9px; align-items: center; }
+.recipe-line { display: grid; grid-template-columns: 1fr 132px 132px 150px; gap: 9px; align-items: center; }
 .recipe-line > select, .recipe-line > input {
   border: 1px solid var(--line-strong); border-radius: 8px;
   padding: 8px 10px; font-size: 12px; background: var(--surface-input);
 }
 .recipe-line > input { font-family: var(--mono); }
+.recipe-line > input:disabled { background: var(--surface-head); opacity: .6; }
 .recipe-line__cost { font-family: var(--mono); font-size: 11px; color: var(--ink-muted); text-align: right; }
+@media (max-width: 720px) {
+  .recipe-line { grid-template-columns: 1fr 1fr; }
+  .recipe-line > select { grid-column: 1 / -1; }
+  .recipe-line__cost { grid-column: 1 / -1; text-align: left; }
+}
 .recipe-lines { margin-top: 14px; display: flex; flex-direction: column; gap: 9px; }
 
 /* ==========================================================================

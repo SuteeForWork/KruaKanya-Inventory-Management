@@ -52,7 +52,12 @@ export function recipeFromForm(state, form) {
   return {
     ...form,
     net: toKg(form.net, 'g'),
-    lines: (form.lines || []).map(l => ({ ...l, qty: bomQtyFromInput(state, l.code, l.qty) }))
+    lines: (form.lines || []).map(l => ({
+      ...l,
+      qty: bomQtyFromInput(state, l.code, l.qty),
+      // After-prep weight — only meaningful for a weighed ingredient, and only when typed.
+      prepQty: isCounted(state, l.code) || l.prep === undefined || String(l.prep).trim() === '' ? null : toKg(l.prep, 'g')
+    }))
   };
 }
 
@@ -64,9 +69,17 @@ export function recipeFromForm(state, form) {
  */
 export function recipePlan(state, recipe) {
   const lines = (recipe.lines || []).filter(l => l.code && Number(l.qty) > 0);
+  const weighed = lines.filter(l => !isCounted(state, l.code));
+  const kg = weighed.reduce((a, l) => a + Number(l.qty), 0);
+  // What's left after prep (a line with no prep figure loses nothing). Waste
+  // from prep is the difference — 1000 g of pork that is 850 g once the fat is
+  // trimmed wastes 150 g (15%).
+  const prepKg = weighed.reduce((a, l) => a + (l.prepQty != null ? Number(l.prepQty) : Number(l.qty)), 0);
   return {
-    lines,
-    kg:   lines.filter(l => !isCounted(state, l.code)).reduce((a, l) => a + Number(l.qty), 0),
+    lines, kg, prepKg,
+    hasPrep: weighed.some(l => l.prepQty != null),
+    wasteKg: kg - prepKg,
+    wastePct: kg ? ((kg - prepKg) / kg) * 100 : 0,
     cost: lines.reduce((a, l) => a + bomLineCost(state, l), 0)
   };
 }

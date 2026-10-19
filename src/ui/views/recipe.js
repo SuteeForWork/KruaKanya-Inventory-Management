@@ -19,7 +19,7 @@ const VARIANCE_HEAD = [
 ];
 
 const REGISTRY_HEAD = [
-  'รหัสสูตร', 'เมนู', 'วัตถุดิบในสูตร', 'วัตถุดิบ/หน่วย (กรัม)|R', 'ผลผลิตสุทธิ/หน่วย (กรัม)|R',
+  'รหัสสูตร', 'เมนู', 'วัตถุดิบในสูตร', 'วัตถุดิบ/หน่วย (กรัม)|R', 'ของเสียจากการเตรียม|R', 'ผลผลิตสุทธิ/หน่วย (กรัม)|R',
   'Yield มาตรฐาน|R', 'ต้นทุนมาตรฐาน/หน่วย|R', 'ผลิตได้จากสต๊อก|R', 'กำลังผลิต/วัน|R',
   'ผลิตได้สูงสุด|R', 'ข้อจำกัด'
 ];
@@ -69,6 +69,15 @@ function stats(state, variance) {
   ];
 }
 
+/** Prep loss of one drafted line, e.g. "ทิ้ง 150 กรัม (15%)" — or why it can't be computed. */
+function prepNote(unit, stored) {
+  if (unit.counted) return `${unit.label} / หน่วย`;
+  if (stored.prepQty == null) return 'กรัม / หน่วย';
+  if (stored.prepQty > stored.qty) return 'หลังเตรียมมากกว่าก่อนเตรียม';
+  const waste = stored.qty - stored.prepQty;
+  return `ทิ้ง ${gram(waste)} กรัม (${n((waste / stored.qty) * 100, 1)}%)`;
+}
+
 /** One ingredient line of the recipe being drafted. */
 function recipeLine(state, line, index) {
   const itemOptions = state.items.map(i => ({ value: i.code, label: `${i.code} · ${i.name}` }));
@@ -88,12 +97,20 @@ function recipeLine(state, line, index) {
   return el('div', { class: 'recipe-line' },
     select,
     el('input', {
-      type: 'text', inputmode: 'decimal', autocomplete: 'off', value: line.qty, placeholder: `${unit.label} ต่อหน่วย`,
+      type: 'text', inputmode: 'decimal', autocomplete: 'off', value: line.qty,
+      placeholder: unit.counted ? `${unit.label} ต่อหน่วย` : 'ก่อนเตรียม (กรัม)',
       'data-bind': `recipeForm.lines.${index}.qty`,
       onInput: e => store.setRecipeLine(index, 'qty', cleanDecimal(e.target.value))
     }),
+    // A counted ingredient (a bag, a seal) has no prep loss to record.
+    el('input', {
+      type: 'text', inputmode: 'decimal', autocomplete: 'off', value: unit.counted ? '' : (line.prep ?? ''),
+      placeholder: unit.counted ? '—' : 'หลังเตรียม (กรัม)', disabled: unit.counted,
+      'data-bind': `recipeForm.lines.${index}.prep`,
+      onInput: e => store.setRecipeLine(index, 'prep', cleanDecimal(e.target.value))
+    }),
     el('span', { class: 'recipe-line__cost' },
-      el('div', { text: `${unit.label} / หน่วย` }),
+      el('div', { text: prepNote(unit, stored) }),
       el('div', { text: cost })
     )
   );
@@ -117,7 +134,7 @@ function form(state) {
       inputField('ความสามารถผลิตสูงสุด / วัน (หน่วย)', 'recipeForm', 'capPerDay', { type: 'number', placeholder: '600', mono: true })
     ),
     el('div', { class: 'recipe-lines' },
-      el('span', { class: 'field__label', text: 'วัตถุดิบในสูตร · ปริมาณต่อ 1 หน่วยผลผลิต' }),
+      el('span', { class: 'field__label', text: 'วัตถุดิบในสูตร · ปริมาณต่อ 1 หน่วยผลผลิต (ก่อนเตรียม = ที่เบิกจากสต๊อก · หลังเตรียม = ที่ใช้ได้จริงหลังตัดแต่ง)' }),
       f.lines.map((line, i) => recipeLine(state, line, i)),
       el('button', { class: 'btn--dashed', text: '+ เพิ่มวัตถุดิบในสูตร', onClick: () => store.addRecipeLine() })
     ),
@@ -126,6 +143,11 @@ function form(state) {
         el('div', null,
           el('div', { class: 'summary__label', text: 'วัตถุดิบตามสูตร / หน่วย' }),
           el('div', { class: 'summary__value', text: plan.kg ? `${gram(plan.kg)} กรัม` : '—' })
+        ),
+        el('div', null,
+          el('div', { class: 'summary__label', text: 'ของเสียจากการเตรียม / หน่วย' }),
+          el('div', { class: 'summary__value tone-' + (plan.wasteKg < 0 ? 'danger' : 'ink'),
+            text: plan.hasPrep ? `${gram(plan.wasteKg)} กรัม (${n(plan.wastePct, 1)}%)` : '—' })
         ),
         el('div', null,
           el('div', { class: 'summary__label', text: 'ต้นทุนมาตรฐาน / หน่วย' }),
@@ -179,7 +201,9 @@ function registryRows(state) {
       const cap = capacityOf(state, r);
       const lines = plan.lines.map(l => {
         const item = state.items.find(i => i.code === l.code);
-        return `${item ? item.name : l.code} ${amountText(Number(l.qty), item && item.trackBy === 'count' ? item.unit : 'กก.')}`;
+        const counted = item && item.trackBy === 'count';
+        const prep = !counted && l.prepQty != null ? ` → ${gram(l.prepQty)} หลังเตรียม` : '';
+        return `${item ? item.name : l.code} ${amountText(Number(l.qty), counted ? item.unit : 'กก.')}${prep}`;
       }).join(' + ');
 
       return tr(
@@ -187,6 +211,7 @@ function registryRows(state) {
         tdTitled(r.product, `ต่อ 1 ${r.unit}`, { mono: false }),
         td(lines),
         tdNum(gram(plan.kg)),
+        tdNum(plan.hasPrep ? `${gram(plan.wasteKg)} (${n(plan.wastePct, 1)}%)` : '—'),
         tdNum(gram(r.net)),
         tdNum(plan.kg ? `${n(standardYield(r, plan), 1)}%` : '—'),
         tdNum(baht(plan.cost, 2)),

@@ -55,7 +55,10 @@ const toItem = row => ({
 const toRecipe = row => ({
   id: row.id, product: row.product, unit: row.unit,
   net: num(row.net), capPerDay: row.cap_per_day,
-  lines: (row.recipe_lines || []).map(l => ({ code: l.item_code, qty: num(l.qty) }))
+  lines: (row.recipe_lines || []).map(l => ({
+    code: l.item_code, qty: num(l.qty),
+    prepQty: l.prep_qty == null ? null : num(l.prep_qty)
+  }))
 });
 
 const toLot = row => ({
@@ -102,7 +105,7 @@ export async function loadAll() {
       .then(r => must(r, 'โหลดซัพพลายเออร์')),
     supabase.from('items').select('*, suppliers(name)').order('code')
       .then(r => must(r, 'โหลดวัตถุดิบ')),
-    supabase.from('recipes').select('*, recipe_lines(item_code, qty)').order('id')
+    supabase.from('recipes').select('*, recipe_lines(*)').order('id')
       .then(r => must(r, 'โหลดสูตร')),
     supabase.from('lots').select('*, items(name, unit), suppliers(name)').order('id')
       .then(r => must(r, 'โหลดล็อต')),
@@ -228,11 +231,24 @@ export async function insertRecipe(recipe) {
     id: recipe.id, product: recipe.product, unit: recipe.unit,
     net: recipe.net, cap_per_day: recipe.capPerDay
   }), 'เพิ่มสูตร');
-  if (recipe.lines.length) {
-    must(await supabase.from('recipe_lines').insert(
-      recipe.lines.map(l => ({ recipe_id: recipe.id, item_code: l.code, qty: l.qty }))
-    ), 'เพิ่มรายการวัตถุดิบในสูตร');
+  if (!recipe.lines.length) return;
+
+  // prep_qty is only sent when a line has one, so a recipe without prep
+  // figures saves on a database that hasn't had migration 011 yet.
+  const result = await supabase.from('recipe_lines').insert(
+    recipe.lines.map(l => ({
+      recipe_id: recipe.id, item_code: l.code, qty: l.qty,
+      ...(l.prepQty != null ? { prep_qty: l.prepQty } : {})
+    }))
+  );
+  if (result.error) {
+    // Don't leave a recipe behind with no ingredients.
+    await supabase.from('recipes').delete().eq('id', recipe.id);
+    if (/prep_qty/.test(result.error.message)) {
+      throw new Error('ฐานข้อมูลยังไม่มีคอลัมน์น้ำหนักหลังเตรียม — ต้องรัน db/migrations/011_recipe_prep_weight.sql ก่อน');
+    }
   }
+  must(result, 'เพิ่มรายการวัตถุดิบในสูตร');
 }
 
 /** One receipt: a new lot plus its matching 'รับเข้า' ledger row. */

@@ -93,7 +93,8 @@ create table recipes (
 create table recipe_lines (
   recipe_id text not null references recipes(id) on delete cascade,
   item_code text not null references items(code) on update cascade,
-  qty       numeric not null,        -- kg of this ingredient per unit of output
+  qty       numeric not null,        -- kg of this ingredient per unit of output, as issued (before prep)
+  prep_qty  numeric,                 -- kg left after prep (trimming); null = no prep loss — db/migrations/011
   primary key (recipe_id, item_code)
 );
 
