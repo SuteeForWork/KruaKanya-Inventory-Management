@@ -91,6 +91,13 @@ export function availableKg(state, code) {
     .reduce((sum, l) => sum + weightOf(l), 0);
 }
 
+/** Usable pieces of a count-tracked item — expired lots do not count. */
+export function availableQty(state, code) {
+  return liveLots(state)
+    .filter(l => l.code === code && ageLeftOf(l) > 0)
+    .reduce((sum, l) => sum + l.qtyLeft, 0);
+}
+
 /**
  * FEFO allocation: walk the live lots oldest-expiry-first and take from each
  * until the requested quantity is covered. `shortBy` is what stock cannot cover.
@@ -141,6 +148,12 @@ export function pricePerKg(state, code) {
   if (!lots.length) return null;
   const last = lots[lots.length - 1];
   return last.weightPerUnit ? last.pricePerUnit / last.weightPerUnit : null;
+}
+
+/** Latest known price per piece for an item, across all branches. */
+export function pricePerPiece(state, code) {
+  const lots = state.lots.filter(l => l.code === code);
+  return lots.length ? lots[lots.length - 1].pricePerUnit : null;
 }
 
 /* -------------------------------------------------------------------------- */

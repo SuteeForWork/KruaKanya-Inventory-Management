@@ -13,11 +13,11 @@
 
 import { seed } from '../data/seed.js';
 import { config, today } from '../config.js';
-import { clockTime, kg, baht, n, toISODate, toKg } from './format.js';
+import { clockTime, gram, kg, baht, n, toISODate, toKg } from './format.js';
 import {
   ALL_BRANCHES, allocate, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn
 } from './inventory.js';
-import { outputFigures, outputIngredients, recipePlan } from './production.js';
+import { outputFigures, outputIngredients, recipeFromForm, recipePlan } from './production.js';
 import {
   PERM_ORDER, ROLES, SECTIONS, STAFF_ROLES,
   setRoles, authenticate, defaultPerms, firstViewFor, roleByKey
@@ -1315,7 +1315,9 @@ class Store {
   async addRecipe() {
     if (!this.guard('recipe')) return;
 
-    const f = this.state.recipeForm;
+    // The form is typed in grams (pieces for a counted ingredient); the recipe
+    // is stored — and every calculation runs — in kg.
+    const f = recipeFromForm(this.state, this.state.recipeForm);
     const plan = recipePlan(this.state, f);
     if (!f.product || !plan.lines.length) {
       this.say('ต้องระบุชื่อเมนู และวัตถุดิบในสูตรอย่างน้อย 1 รายการ', true);
@@ -1325,7 +1327,7 @@ class Store {
     const id = 'BOM-' + String(this.state.recipes.length + 1).padStart(3, '0');
     const recipe = {
       id, product: f.product, unit: f.unit || 'หน่วย',
-      net: Number(f.net) || plan.kg,
+      net: f.net || plan.kg,
       capPerDay: Number(f.capPerDay) || 0,
       lines: plan.lines.map(l => ({ code: l.code, qty: Number(l.qty) }))
     };
@@ -1333,7 +1335,7 @@ class Store {
     const ok = await this.persist('บันทึกสูตร', () => db.insertRecipe(recipe));
     if (!ok) return;
     this.set(s => ({ recipes: s.recipes.concat([recipe]), recipeForm: blankRecipe() }));
-    this.say(`บันทึกสูตร ${id} · ${f.product} · วัตถุดิบ ${n(plan.kg, 3)} กก./หน่วย · ต้นทุนมาตรฐาน ${baht(plan.cost, 2)}`);
+    this.say(`บันทึกสูตร ${id} · ${f.product} · วัตถุดิบ ${gram(plan.kg)} กรัม/หน่วย · ต้นทุนมาตรฐาน ${baht(plan.cost, 2)}`);
   }
 
   /* ---- suppliers -------------------------------------------------------- */

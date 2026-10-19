@@ -48,6 +48,17 @@ export function cleanDecimal(raw) {
   return dot < 0 ? s : s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
 }
 
+/** A kg amount as grams: whole grams normally, one decimal when it isn't whole. */
+export function gram(kgValue) {
+  const g = Math.round((Number(kgValue) || 0) * 1e4) / 10;
+  return n(g, Number.isInteger(g) ? 0 : 1);
+}
+
+/** A BOM/ingredient quantity with its unit — a stored kg amount shown as grams, a counted one as it is. */
+export function amountText(qty, unit) {
+  return unit === 'กก.' ? `${gram(qty)} กรัม` : `${n(qty, 2)} ${unit}`;
+}
+
 /** A weight typed in 'g' or 'kg' → kg, the unit every stored weight uses. */
 export function toKg(value, unit) {
   const x = Number(value) || 0;

@@ -6,7 +6,7 @@
 
 import { config } from '../config.js';
 import { toKg } from './format.js';
-import { availableKg, issuedOn, pricePerKg, scopedOutputs, scopedMoves } from './inventory.js';
+import { availableKg, availableQty, issuedOn, pricePerKg, pricePerPiece, scopedOutputs, scopedMoves } from './inventory.js';
 
 /* -------------------------------------------------------------------------- */
 /* Recipes                                                                     */
@@ -16,16 +16,58 @@ export function recipeFor(state, product) {
   return state.recipes.find(r => r.product === product) || null;
 }
 
+const isCounted = (state, code) => {
+  const item = state.items.find(i => i.code === code);
+  return Boolean(item && item.trackBy === 'count');
+};
+
+/**
+ * How a BOM line's amount is typed and shown: grams for a weighed ingredient,
+ * the item's own unit (ใบ, ถุง…) for one that's counted by piece. Stored as
+ * kg and pieces respectively.
+ */
+export function bomLineUnit(state, code) {
+  const item = state.items.find(i => i.code === code);
+  return item && item.trackBy === 'count' ? { counted: true, label: item.unit } : { counted: false, label: 'กรัม' };
+}
+
+/** What a recipe-form amount typed for `code` is, in stored units (kg, or pieces). */
+function bomQtyFromInput(state, code, typed) {
+  return isCounted(state, code) ? Number(typed) || 0 : toKg(typed, 'g');
+}
+
+/** Standard cost of one BOM line, amount in stored units. */
+export function bomLineCost(state, line) {
+  const qty = Number(line.qty) || 0;
+  return isCounted(state, line.code)
+    ? qty * (pricePerPiece(state, line.code) ?? 0)
+    : qty * (pricePerKg(state, line.code) ?? 0);
+}
+
+/**
+ * The recipe form is typed in grams; every calculation below runs on kg. This
+ * turns a form (or an unsaved draft) into a recipe in stored units.
+ */
+export function recipeFromForm(state, form) {
+  return {
+    ...form,
+    net: toKg(form.net, 'g'),
+    lines: (form.lines || []).map(l => ({ ...l, qty: bomQtyFromInput(state, l.code, l.qty) }))
+  };
+}
+
 /**
  * Ingredient weight and standard cost for one unit of output.
- * Blank or zero lines are ignored so half-filled forms still preview.
+ * Blank or zero lines are ignored so half-filled forms still preview. Only
+ * weighed ingredients add to the kg total — a counted one (a bag, a seal)
+ * has no weight to add, but still carries its cost.
  */
 export function recipePlan(state, recipe) {
   const lines = (recipe.lines || []).filter(l => l.code && Number(l.qty) > 0);
   return {
     lines,
-    kg:   lines.reduce((a, l) => a + Number(l.qty), 0),
-    cost: lines.reduce((a, l) => a + Number(l.qty) * pricePerKg(state, l.code), 0)
+    kg:   lines.filter(l => !isCounted(state, l.code)).reduce((a, l) => a + Number(l.qty), 0),
+    cost: lines.reduce((a, l) => a + bomLineCost(state, l), 0)
   };
 }
 
@@ -49,12 +91,13 @@ export function capacityOf(state, recipe) {
   let stockUnits = Infinity;
   let limit = '—';
   for (const line of plan.lines) {
-    const available = availableKg(state, line.code);
+    const counted = isCounted(state, line.code);
+    const available = counted ? availableQty(state, line.code) : availableKg(state, line.code);
     const units = Math.floor(available / Number(line.qty));
     if (units < stockUnits) {
       stockUnits = units;
       const item = state.items.find(i => i.code === line.code);
-      limit = { name: item ? item.name : line.code, availableKg: available };
+      limit = { name: item ? item.name : line.code, available, unit: counted ? item.unit : 'กก.' };
     }
   }
   if (stockUnits === Infinity) stockUnits = 0;

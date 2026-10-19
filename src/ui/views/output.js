@@ -6,7 +6,7 @@ import {
   statCard, submitRow, table, td, tdCode, tdNum, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
-import { baht, kg, kgNum, n, shortDate } from '../../core/format.js';
+import { amountText, baht, kg, kgNum, n, shortDate } from '../../core/format.js';
 import { today } from '../../config.js';
 import { issuedOn, scopedOutputs } from '../../core/inventory.js';
 import { dailyProduction, outputFigures, outputIngredients, yieldStatus, yieldTarget } from '../../core/production.js';
@@ -49,8 +49,8 @@ function ingredientsPanel(state) {
       ['วัตถุดิบอื่นๆ', 'ตามสูตร|R', scaled ? `ปรับตามน้ำหนักหมู (×${n(plan.scale, 3)})|R` : 'ที่ใช้|R'],
       plan.rows.map(r => tr(
         td(r.name),
-        tdNum(`${n(r.standard, 3)} ${r.unit}`),
-        tdNum(`${n(r.used, 3)} ${r.unit}`)
+        tdNum(amountText(r.standard, r.unit)),
+        tdNum(amountText(r.used, r.unit))
       ))
     );
   }
@@ -227,7 +227,7 @@ function recordRows(state) {
       tdNum(o.porkKg ? kgNum(o.porkKg) : '—'),
       tdNum(o.trimFatKg ? kgNum(o.trimFatKg) : '—'),
       td((o.ingredients || []).length
-        ? (o.ingredients || []).map(i => `${i.name} ${n(i.used, 3)} ${i.unit}`).join(' · ')
+        ? (o.ingredients || []).map(i => `${i.name} ${amountText(i.used, i.unit)}`).join(' · ')
         : '—'),
       tdNum(`${n((o.weight / o.qty) * 1000, 0)} ก.`),
       td(o.staff),

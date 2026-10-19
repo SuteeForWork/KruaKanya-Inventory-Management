@@ -6,28 +6,27 @@ import {
   statCard, submitRow, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
-import { baht, cleanDecimal, n } from '../../core/format.js';
-import { pricePerKg } from '../../core/inventory.js';
+import { amountText, baht, cleanDecimal, gram, n } from '../../core/format.js';
 import {
-  capacityOf, dailyProduction, productVariance, recipePlan,
+  bomLineCost, bomLineUnit, capacityOf, dailyProduction, productVariance, recipeFromForm, recipePlan,
   standardYield, varianceStatus
 } from '../../core/production.js';
 
 const VARIANCE_HEAD = [
-  'เมนู', 'ผลิตได้|R', 'วัตถุดิบตามสูตร (กก.)|R', 'ควรได้ผลผลิต (กก.)|R',
-  'วัตถุดิบใช้จริง · ปันส่วน (กก.)|R', 'ส่วนต่างจากสูตร (กก.)|R', 'มูลค่าที่เสียไป|R',
+  'เมนู', 'ผลิตได้|R', 'วัตถุดิบตามสูตร (กรัม)|R', 'ควรได้ผลผลิต (กรัม)|R',
+  'วัตถุดิบใช้จริง · ปันส่วน (กรัม)|R', 'ส่วนต่างจากสูตร (กรัม)|R', 'มูลค่าที่เสียไป|R',
   'Yield จริง (ประมาณ)', 'สถานะ'
 ];
 
 const REGISTRY_HEAD = [
-  'รหัสสูตร', 'เมนู', 'วัตถุดิบในสูตร', 'วัตถุดิบ/หน่วย (กก.)|R', 'ผลผลิตสุทธิ/หน่วย (กก.)|R',
+  'รหัสสูตร', 'เมนู', 'วัตถุดิบในสูตร', 'วัตถุดิบ/หน่วย (กรัม)|R', 'ผลผลิตสุทธิ/หน่วย (กรัม)|R',
   'Yield มาตรฐาน|R', 'ต้นทุนมาตรฐาน/หน่วย|R', 'ผลิตได้จากสต๊อก|R', 'กำลังผลิต/วัน|R',
   'ผลิตได้สูงสุด|R', 'ข้อจำกัด'
 ];
 
 const limitText = cap => (typeof cap.limit === 'string'
   ? cap.limit
-  : `${cap.limit.name} (${n(cap.limit.availableKg, 1)} กก.)`);
+  : `${cap.limit.name} (${cap.limit.unit === 'กก.' ? gram(cap.limit.available) + ' กรัม' : n(cap.limit.available) + ' ' + cap.limit.unit})`);
 
 const boundText = cap => (cap.bound === 'กำลังผลิต' ? 'กำลังผลิตต่อวัน' : limitText(cap));
 
@@ -53,7 +52,7 @@ function stats(state, variance) {
     }),
     statCard({
       plain: true, tone: 'danger', toneValue: 'danger',
-      label: 'ส่วนเกินสูตรรวม (กก.)', value: n(overKg, 1),
+      label: 'ส่วนเกินสูตรรวม (กรัม)', value: gram(overKg),
       hint: 'วัตถุดิบที่ใช้เกินกว่าสูตรกำหนด'
     }),
     statCard({
@@ -73,9 +72,9 @@ function stats(state, variance) {
 /** One ingredient line of the recipe being drafted. */
 function recipeLine(state, line, index) {
   const itemOptions = state.items.map(i => ({ value: i.code, label: `${i.code} · ${i.name}` }));
-  const cost = line.code && Number(line.qty) > 0
-    ? baht(Number(line.qty) * pricePerKg(state, line.code), 2)
-    : '—';
+  const unit = bomLineUnit(state, line.code);
+  const stored = recipeFromForm(state, { lines: [line] }).lines[0];
+  const cost = line.code && stored.qty > 0 ? baht(bomLineCost(state, stored), 2) : '—';
 
   const select = el('select', {
     'data-bind': `recipeForm.lines.${index}.code`,
@@ -89,18 +88,23 @@ function recipeLine(state, line, index) {
   return el('div', { class: 'recipe-line' },
     select,
     el('input', {
-      type: 'text', inputmode: 'decimal', autocomplete: 'off', value: line.qty, placeholder: 'กก. ต่อหน่วย',
+      type: 'text', inputmode: 'decimal', autocomplete: 'off', value: line.qty, placeholder: `${unit.label} ต่อหน่วย`,
       'data-bind': `recipeForm.lines.${index}.qty`,
       onInput: e => store.setRecipeLine(index, 'qty', cleanDecimal(e.target.value))
     }),
-    el('span', { class: 'recipe-line__cost', text: cost })
+    el('span', { class: 'recipe-line__cost' },
+      el('div', { text: `${unit.label} / หน่วย` }),
+      el('div', { text: cost })
+    )
   );
 }
 
 function form(state) {
   const f = state.recipeForm;
-  const plan = recipePlan(state, f);
-  const net = Number(f.net) || 0;
+  // Typed in grams; the preview runs on the same kg the saved recipe will use.
+  const draft = recipeFromForm(state, f);
+  const plan = recipePlan(state, draft);
+  const net = draft.net;
 
   return formCard({
     title: 'ลงทะเบียนเมนูและสูตร (ต่อ 1 หน่วยผลผลิต)',
@@ -109,7 +113,7 @@ function form(state) {
     fieldGrid('sm',
       inputField('ชื่อเมนู / สินค้า', 'recipeForm', 'product', { placeholder: 'เช่น ข้าวกล่องไก่ย่าง' }),
       inputField('หน่วยผลผลิต', 'recipeForm', 'unit', { placeholder: 'กล่อง / ก้อน / ปอนด์' }),
-      inputField('น้ำหนักสุทธิที่ควรได้ / หน่วย (กก.)', 'recipeForm', 'net', { type: 'number', placeholder: '0.085', mono: true }),
+      inputField('น้ำหนักสุทธิที่ควรได้ / หน่วย (กรัม)', 'recipeForm', 'net', { type: 'number', placeholder: '85', mono: true }),
       inputField('ความสามารถผลิตสูงสุด / วัน (หน่วย)', 'recipeForm', 'capPerDay', { type: 'number', placeholder: '600', mono: true })
     ),
     el('div', { class: 'recipe-lines' },
@@ -121,7 +125,7 @@ function form(state) {
       el('div', { class: 'summary' },
         el('div', null,
           el('div', { class: 'summary__label', text: 'วัตถุดิบตามสูตร / หน่วย' }),
-          el('div', { class: 'summary__value', text: plan.kg ? `${n(plan.kg, 3)} กก.` : '—' })
+          el('div', { class: 'summary__value', text: plan.kg ? `${gram(plan.kg)} กรัม` : '—' })
         ),
         el('div', null,
           el('div', { class: 'summary__label', text: 'ต้นทุนมาตรฐาน / หน่วย' }),
@@ -145,7 +149,7 @@ function varianceRows(variance) {
       const over = v.gapKg > 0.05;
       const under = v.gapKg < -0.05;
 
-      const gapKg = !v.plan ? '—' : (over ? '+' : under ? '−' : '') + n(Math.abs(v.gapKg), 1);
+      const gapKg = !v.plan ? '—' : (over ? '+' : under ? '−' : '') + gram(Math.abs(v.gapKg));
       const gapCost = !v.plan ? '—'
         : over ? '+' + baht(v.gapCost)
         : under ? `ประหยัด ${baht(Math.abs(v.gapCost))}`
@@ -156,9 +160,9 @@ function varianceRows(variance) {
           `${v.rows.length} รอบผลิต · เป้าตามสูตร ${v.stdYield ? n(v.stdYield, 1) + '%' : '—'}`,
           { mono: false }),
         tdNum(`${n(v.qty)} ${v.unit}`),
-        tdNum(v.planKg ? n(v.planKg, 1) : '—'),
-        tdNum(v.expectKg ? n(v.expectKg, 1) : '—'),
-        tdNum(v.actualKg ? n(v.actualKg, 1) : '—'),
+        tdNum(v.planKg ? gram(v.planKg) : '—'),
+        tdNum(v.expectKg ? gram(v.expectKg) : '—'),
+        tdNum(v.actualKg ? gram(v.actualKg) : '—'),
         tdNum(gapKg),
         tdNum(gapCost),
         td(meter(v.achieved, status.tone, { value: v.achieved ? `${n(v.achieved, 1)}%` : '—' })),
@@ -175,15 +179,15 @@ function registryRows(state) {
       const cap = capacityOf(state, r);
       const lines = plan.lines.map(l => {
         const item = state.items.find(i => i.code === l.code);
-        return `${item ? item.name : l.code} ${n(Number(l.qty), 3)} กก.`;
+        return `${item ? item.name : l.code} ${amountText(Number(l.qty), item && item.trackBy === 'count' ? item.unit : 'กก.')}`;
       }).join(' + ');
 
       return tr(
         tdCode(r.id),
         tdTitled(r.product, `ต่อ 1 ${r.unit}`, { mono: false }),
         td(lines),
-        tdNum(n(plan.kg, 3)),
-        tdNum(n(r.net, 3)),
+        tdNum(gram(plan.kg)),
+        tdNum(gram(r.net)),
         tdNum(plan.kg ? `${n(standardYield(r, plan), 1)}%` : '—'),
         tdNum(baht(plan.cost, 2)),
         tdNum(`${n(cap.stockUnits)} ${r.unit}`),

@@ -12,7 +12,8 @@ import {
   ageLeftOf, branchName, branchSummary, costOf, expiryOf,
   liveLots, scopedLots, scopedMoves, scopedOutputs, sortedMoves, weightOf
 } from './inventory.js';
-import { capacityOf, dailyProduction, recipePlan, standardYield } from './production.js';
+import { amountText } from './format.js';
+import { bomLineUnit, capacityOf, dailyProduction, recipePlan, standardYield } from './production.js';
 
 /** Rows for the currently open view, header row first. */
 export function csvRows(state) {
@@ -69,14 +70,14 @@ const BUILDERS = {
   },
 
   recipe(state) {
-    const header = ['รหัสสูตร', 'เมนู', 'หน่วยผลผลิต', 'วัตถุดิบในสูตร', 'วัตถุดิบต่อหน่วย(กก.)', 'ผลผลิตสุทธิต่อหน่วย(กก.)', 'Yield มาตรฐาน(%)', 'ต้นทุนมาตรฐานต่อหน่วย', 'ผลิตได้จากสต๊อก(หน่วย)', 'กำลังผลิตต่อวัน(หน่วย)', 'ผลิตได้สูงสุด(หน่วย)', 'ข้อจำกัด'];
+    const header = ['รหัสสูตร', 'เมนู', 'หน่วยผลผลิต', 'วัตถุดิบในสูตร', 'วัตถุดิบต่อหน่วย(กรัม)', 'ผลผลิตสุทธิต่อหน่วย(กรัม)', 'Yield มาตรฐาน(%)', 'ต้นทุนมาตรฐานต่อหน่วย', 'ผลิตได้จากสต๊อก(หน่วย)', 'กำลังผลิตต่อวัน(หน่วย)', 'ผลิตได้สูงสุด(หน่วย)', 'ข้อจำกัด'];
     return [header].concat(state.recipes.map(r => {
       const plan = recipePlan(state, r);
       const cap = capacityOf(state, r);
       return [
         r.id, r.product, r.unit,
-        plan.lines.map(l => `${l.code} ${l.qty} กก.`).join(' + '),
-        num(plan.kg, 3), num(r.net, 3),
+        plan.lines.map(l => `${l.code} ${amountText(l.qty, bomLineUnit(state, l.code).counted ? (state.items.find(i => i.code === l.code) || {}).unit : 'กก.')}`).join(' + '),
+        num(plan.kg * 1000, 1), num(r.net * 1000, 1),
         plan.kg ? num(standardYield(r, plan), 1) : '-',
         num(plan.cost, 2), cap.stockUnits, r.capPerDay || '-', cap.units,
         cap.bound === 'กำลังผลิต' ? 'กำลังผลิตต่อวัน' : limitText(cap)
@@ -121,7 +122,7 @@ BUILDERS.admin = BUILDERS.moves;
 function limitText(cap) {
   return typeof cap.limit === 'string'
     ? cap.limit
-    : `${cap.limit.name} (${cap.limit.availableKg.toFixed(1)} กก.)`;
+    : `${cap.limit.name} (${cap.limit.available.toFixed(1)} ${cap.limit.unit})`;
 }
 
 function toCsv(rows) {
