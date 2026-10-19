@@ -665,7 +665,11 @@ class Store {
       editingItem: code,
       itemForm: {
         code: it.code, name: it.name, category: it.category === '-' ? '' : it.category, unit: it.unit,
-        weightPerUnit: String(it.weightPerUnit), weightUnit: 'kg', shelfLife: String(it.shelfLife),
+        // A counted item's weight is grams per piece — show it that way.
+        ...(it.trackBy === 'count'
+          ? { weightPerUnit: it.weightPerUnit ? String(Math.round(it.weightPerUnit * 1e4) / 10) : '', weightUnit: 'g' }
+          : { weightPerUnit: String(it.weightPerUnit), weightUnit: 'kg' }),
+        shelfLife: String(it.shelfLife),
         minStock: String(it.minStock), storage: it.storage === '-' ? '' : it.storage,
         mainSupplier: it.mainSupplier || '',
         trackBy: it.trackBy || 'weight',
@@ -683,11 +687,12 @@ class Store {
     if (!this.guard('master')) return;
     const f = this.state.itemForm;
     const trackBy = f.trackBy === 'count' ? 'count' : 'weight';
-    // A count-tracked item (e.g. instruction cards) isn't weighed at all —
-    // weightPerUnit stays 0 and every weight-derived figure for it is 0 too,
-    // which lowStock()/pricePerKg() in inventory.js already treat correctly.
+    // A count-tracked item (e.g. instruction cards) isn't weighed in stock — its
+    // lots always carry weight 0 (submitReceive), so lowStock()/pricePerKg()
+    // treat it correctly. weightPerUnit on the item itself is optional there:
+    // it only lets a BOM line for it (a bag of seasoning) be typed in grams.
     // Typed in g or kg (see the "หน่วยน้ำหนัก" toggle) — always stored in kg.
-    const weightPerUnit = trackBy === 'count' ? 0 : toKg(f.weightPerUnit, f.weightUnit);
+    const weightPerUnit = toKg(f.weightPerUnit, f.weightUnit);
     const shelfLife = Number(f.shelfLife) || 0;
     const minStock = Number(f.minStock) || 0;
     const packSize = Number(f.packSize) || 0;

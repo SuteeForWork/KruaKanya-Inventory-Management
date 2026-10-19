@@ -16,9 +16,36 @@ export function recipeFor(state, product) {
   return state.recipes.find(r => r.product === product) || null;
 }
 
+const itemOf = (state, code) => state.items.find(i => i.code === code);
+
+/**
+ * A BOM line is "counted" — typed in the item's own unit, never weighed —
+ * only for a count-tracked item that has no weight per unit. Give such an item
+ * a weight (grams per bag) and its BOM line is typed in grams like any other
+ * ingredient: stock stays counted in pieces, the recipe is in weight, and the
+ * two are bridged by that weight (see kgPriceOf / availableKgOf).
+ */
 const isCounted = (state, code) => {
-  const item = state.items.find(i => i.code === code);
-  return Boolean(item && item.trackBy === 'count');
+  const item = itemOf(state, code);
+  return Boolean(item && item.trackBy === 'count' && !(item.weightPerUnit > 0));
+};
+
+/** Price per kg of an ingredient — from its lots, or for a counted-but-weighed item its price per piece over its weight per piece. */
+const kgPriceOf = (state, code) => {
+  const item = itemOf(state, code);
+  if (item && item.trackBy === 'count' && item.weightPerUnit > 0) {
+    const perPiece = pricePerPiece(state, code);
+    return perPiece == null ? 0 : perPiece / item.weightPerUnit;
+  }
+  return pricePerKg(state, code) ?? 0;
+};
+
+/** Usable kg in stock; a counted-but-weighed item's pieces are weighed through its weight per piece. */
+const availableKgOf = (state, code) => {
+  const item = itemOf(state, code);
+  return item && item.trackBy === 'count' && item.weightPerUnit > 0
+    ? availableQty(state, code) * item.weightPerUnit
+    : availableKg(state, code);
 };
 
 /**
@@ -27,8 +54,8 @@ const isCounted = (state, code) => {
  * kg and pieces respectively.
  */
 export function bomLineUnit(state, code) {
-  const item = state.items.find(i => i.code === code);
-  return item && item.trackBy === 'count' ? { counted: true, label: item.unit } : { counted: false, label: 'กรัม' };
+  const item = itemOf(state, code);
+  return isCounted(state, code) ? { counted: true, label: item.unit } : { counted: false, label: 'กรัม' };
 }
 
 /** What a recipe-form amount typed for `code` is, in stored units (kg, or pieces). */
@@ -41,7 +68,7 @@ export function bomLineCost(state, line) {
   const qty = Number(line.qty) || 0;
   return isCounted(state, line.code)
     ? qty * (pricePerPiece(state, line.code) ?? 0)
-    : qty * (pricePerKg(state, line.code) ?? 0);
+    : qty * kgPriceOf(state, line.code);
 }
 
 /**
@@ -117,7 +144,7 @@ export function capacityOf(state, recipe) {
   let limit = '—';
   for (const line of plan.lines) {
     const counted = isCounted(state, line.code);
-    const available = counted ? availableQty(state, line.code) : availableKg(state, line.code);
+    const available = counted ? availableQty(state, line.code) : availableKgOf(state, line.code);
     const units = Math.floor(available / Number(line.qty));
     if (units < stockUnits) {
       stockUnits = units;
@@ -188,7 +215,7 @@ export function outputIngredients(state, form) {
     const standard = l.qty * qty;
     return {
       code: l.code, name: item ? item.name : l.code,
-      unit: item && item.trackBy === 'count' ? item.unit : 'กก.',
+      unit: isCounted(state, l.code) ? item.unit : 'กก.',
       standard, used: standard * scale
     };
   });

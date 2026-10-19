@@ -223,7 +223,7 @@ function registryRows(state) {
       const cap = capacityOf(state, r);
       const lines = plan.lines.map(l => {
         const item = state.items.find(i => i.code === l.code);
-        const counted = item && item.trackBy === 'count';
+        const counted = bomLineUnit(state, l.code).counted;
         const change = l.prepQty != null && l.qty ? ((l.prepQty - l.qty) / l.qty) * 100 : 0;
         const prep = !counted && l.prepQty != null
           ? ` → ${gram(l.prepQty)} หลังเตรียม${change ? ` (${change > 0 ? '+' : '−'}${n(Math.abs(change), 1)}%)` : ''}`

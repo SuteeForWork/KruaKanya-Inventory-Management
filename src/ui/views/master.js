@@ -65,9 +65,11 @@ function itemForm(state) {
       inputField('หมวด', 'itemForm', 'category', { placeholder: 'ผักสด / เนื้อสัตว์ / ของแห้ง' }),
       inputField('หน่วยนับ (หน่วยย่อยที่สุด)', 'itemForm', 'unit', { placeholder: 'ลัง / แพ็ค / ถุง / ใบ' }),
       selectField('นับสต๊อกแบบ', 'itemForm', 'trackBy', TRACK_BY_OPTIONS),
-      when(!isCount, () =>
-        inputField('น้ำหนักต่อ 1 หน่วย', 'itemForm', 'weightPerUnit', { type: 'number', placeholder: '3', mono: true })),
-      when(!isCount, () => selectField('หน่วยน้ำหนัก', 'itemForm', 'weightUnit', WEIGHT_UNIT_OPTIONS)),
+      inputField(
+        isCount ? `น้ำหนักต่อ 1 ${f.unit || 'หน่วย'} (ไม่บังคับ · ใช้ใส่น้ำหนักในสูตร BOM)` : 'น้ำหนักต่อ 1 หน่วย',
+        'itemForm', 'weightPerUnit', { type: 'number', placeholder: isCount ? '800' : '3', mono: true }
+      ),
+      selectField('หน่วยน้ำหนัก', 'itemForm', 'weightUnit', WEIGHT_UNIT_OPTIONS),
       inputField('อายุวัตถุดิบ (วัน)', 'itemForm', 'shelfLife', { type: 'number', placeholder: '7', mono: true }),
       inputField(
         isCount ? `ขั้นต่ำในคลัง (${f.unit || 'หน่วย'})` : 'ขั้นต่ำในคลัง (กก.)',
@@ -132,7 +134,7 @@ function itemRows(state) {
       td(i.category),
       td(i.packUnit ? `${i.unit} (${[i.packUnit, i.caseUnit].filter(Boolean).join(' / ')})` : i.unit),
       td(badge(i.trackBy === 'count' ? 'จำนวนชิ้น' : 'น้ำหนัก', i.trackBy === 'count' ? 'watch' : 'ok', { plain: true })),
-      tdNum(i.trackBy === 'count' ? '—' : kgNum(i.weightPerUnit)),
+      tdNum(i.weightPerUnit ? kgNum(i.weightPerUnit) : '—'),
       tdNum(n(i.shelfLife)),
       tdNum(`${n(i.minStock)}${i.trackBy === 'count' ? '' : ' กก.'}`),
       td(i.storage),
