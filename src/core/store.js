@@ -17,7 +17,7 @@ import { clockTime, gram, kg, baht, n, toISODate, toKg } from './format.js';
 import {
   ALL_BRANCHES, allocate, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn
 } from './inventory.js';
-import { outputFigures, outputIngredients, recipeFromForm, recipePlan } from './production.js';
+import { bomLineUnit, outputFigures, outputIngredients, recipeFromForm, recipePlan } from './production.js';
 import {
   PERM_ORDER, ROLES, SECTIONS, STAFF_ROLES,
   setRoles, authenticate, defaultPerms, firstViewFor, roleByKey
@@ -186,7 +186,9 @@ class Store {
       // Which production record is loaded into the output form for correction.
       editingOutput: null,
       // Set when a save needs database columns that haven't been added yet.
-      schemaSetup: false
+      schemaSetup: false,
+      // Which saved recipe is loaded into the recipe form for correction.
+      editingRecipe: null
     };
   }
 
@@ -1323,8 +1325,46 @@ class Store {
     }));
   }
 
+  /**
+   * Loads a saved recipe into the form. Stored in kg, shown in grams (a counted
+   * ingredient in its own unit); the prep % and its direction are worked back
+   * out of the stored after-prep weight. Rounded to a milligram so float noise
+   * from the original save (0.20909999999999998) doesn't show up in the boxes.
+   */
+  startEditRecipe(id) {
+    if (!this.guard('recipe')) return;
+    const r = this.state.recipes.find(x => x.id === id);
+    if (!r) return;
+    const grams = kgValue => String(Math.round(kgValue * 1e6) / 1e3);
+    this.set({
+      editingRecipe: id,
+      recipeForm: {
+        product: r.product, unit: r.unit,
+        net: grams(r.net), capPerDay: r.capPerDay ? String(r.capPerDay) : '',
+        lines: r.lines.map(l => {
+          const counted = bomLineUnit(this.state, l.code).counted;
+          const changed = l.prepQty != null && l.qty > 0 && l.prepQty !== l.qty;
+          const pct = changed ? Math.abs((l.prepQty - l.qty) / l.qty) * 100 : null;
+          return {
+            code: l.code,
+            qty: counted ? String(l.qty) : grams(l.qty),
+            pct: pct == null ? '' : String(Math.round(pct * 1e3) / 1e3),
+            prepType: changed && l.prepQty > l.qty ? 'gain' : 'loss'
+          };
+        })
+      }
+    });
+  }
+
+  cancelEditRecipe() {
+    this.set({ editingRecipe: null, recipeForm: blankRecipe() });
+  }
+
   async addRecipe() {
     if (!this.guard('recipe')) return;
+    const editingId = this.state.editingRecipe;
+    const original = editingId ? this.state.recipes.find(r => r.id === editingId) : null;
+    if (editingId && !original) { this.cancelEditRecipe(); return; }
 
     // The form is typed in grams (pieces for a counted ingredient); the recipe
     // is stored — and every calculation runs — in kg.
@@ -1340,17 +1380,43 @@ class Store {
       this.say(`${item ? item.name : overLoss.code}: % สูญเสียต้องไม่เกิน 100`, true);
       return;
     }
+    const dup = plan.lines.find((l, i) => plan.lines.findIndex(x => x.code === l.code) !== i);
+    if (dup) {
+      const item = this.state.items.find(i => i.code === dup.code);
+      this.say(`${item ? item.name : dup.code} ซ้ำในสูตร — รวมเป็นบรรทัดเดียว`, true);
+      return;
+    }
+
+    // Float noise from grams -> kg and the prep % isn't worth storing.
+    const tidy = x => Math.round(x * 1e9) / 1e9;
+    const lines = plan.lines.map(l => ({
+      code: l.code, qty: tidy(Number(l.qty)),
+      // A prep step that changes nothing (0%) isn't a prep figure — don't store it.
+      prepQty: l.prepQty != null && l.prepQty !== Number(l.qty) ? tidy(l.prepQty) : null
+    }));
+
+    if (original) {
+      const recipe = {
+        ...original, product: f.product, unit: f.unit || 'หน่วย',
+        net: tidy(f.net || plan.kg), capPerDay: Number(f.capPerDay) || 0, lines
+      };
+      const withPrep = lines.some(l => l.prepQty != null) || original.lines.some(l => l.prepQty != null);
+      const ok = await this.persist('แก้ไขสูตร', () => db.updateRecipe(editingId, recipe, withPrep));
+      if (!ok) return;
+      this.set(s => ({
+        recipes: s.recipes.map(r => (r.id === editingId ? recipe : r)),
+        editingRecipe: null, recipeForm: blankRecipe()
+      }));
+      this.say(`แก้ไขสูตร ${editingId} · ${recipe.product} เรียบร้อย`);
+      return;
+    }
 
     const id = 'BOM-' + String(this.state.recipes.length + 1).padStart(3, '0');
     const recipe = {
       id, product: f.product, unit: f.unit || 'หน่วย',
-      net: f.net || plan.kg,
+      net: tidy(f.net || plan.kg),
       capPerDay: Number(f.capPerDay) || 0,
-      // A prep step that changes nothing (0%) isn't a prep figure — don't store it.
-      lines: plan.lines.map(l => ({
-        code: l.code, qty: Number(l.qty),
-        prepQty: l.prepQty != null && l.prepQty !== Number(l.qty) ? l.prepQty : null
-      }))
+      lines
     };
 
     const ok = await this.persist('บันทึกสูตร', () => db.insertRecipe(recipe));

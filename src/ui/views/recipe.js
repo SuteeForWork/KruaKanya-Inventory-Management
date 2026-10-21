@@ -2,7 +2,7 @@
 
 import { el, when } from '../dom.js';
 import {
-  badge, card, fieldGrid, formCard, inputField, meter,
+  badge, card, confirmAction, fieldGrid, formCard, inputField, meter,
   statCard, submitRow, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
@@ -21,7 +21,7 @@ const VARIANCE_HEAD = [
 const REGISTRY_HEAD = [
   'รหัสสูตร', 'เมนู', 'วัตถุดิบในสูตร', 'วัตถุดิบ/หน่วย (กรัม)|R', 'สูญเสีย/เพิ่มจากการเตรียม|R', 'ผลผลิตสุทธิ/หน่วย (กรัม)|R',
   'Yield มาตรฐาน|R', 'ต้นทุนมาตรฐาน/หน่วย|R', 'ผลิตได้จากสต๊อก|R', 'กำลังผลิต/วัน|R',
-  'ผลิตได้สูงสุด|R', 'ข้อจำกัด'
+  'ผลิตได้สูงสุด|R', 'ข้อจำกัด', ''
 ];
 
 const limitText = cap => (typeof cap.limit === 'string'
@@ -145,10 +145,13 @@ function form(state) {
   const draft = recipeFromForm(state, f);
   const plan = recipePlan(state, draft);
   const net = draft.net;
+  const editing = state.editingRecipe;
 
-  return formCard({
-    title: 'ลงทะเบียนเมนูและสูตร (ต่อ 1 หน่วยผลผลิต)',
-    note: 'ระบบใช้สูตรนี้คำนวณวัตถุดิบที่ควรใช้ แล้วเทียบกับที่เบิกออกจริง'
+  const node = formCard({
+    title: editing ? `แก้ไขสูตร · ${editing}` : 'ลงทะเบียนเมนูและสูตร (ต่อ 1 หน่วยผลผลิต)',
+    note: editing
+      ? 'ผลผลิตเก่าจับคู่กับสูตรด้วยชื่อเมนู — ถ้าเปลี่ยนชื่อ ให้ตรงกับชื่อสินค้าที่บันทึกในหน้าผลผลิต'
+      : 'ระบบใช้สูตรนี้คำนวณวัตถุดิบที่ควรใช้ แล้วเทียบกับที่เบิกออกจริง'
   },
     fieldGrid('sm',
       inputField('ชื่อเมนู / สินค้า', 'recipeForm', 'product', { placeholder: 'เช่น ข้าวกล่องไก่ย่าง' }),
@@ -180,9 +183,20 @@ function form(state) {
           el('div', { class: 'summary__value summary__value--green', text: plan.kg && net ? `${n((net / plan.kg) * 100, 1)}%` : '—' })
         )
       ),
-      el('button', { class: 'btn btn--primary btn--submit', text: 'บันทึกสูตร', onClick: () => store.addRecipe() })
+      el('div', { class: 'row', style: { gap: '8px' } },
+        el('button', {
+          class: 'btn btn--primary btn--submit', text: editing ? 'บันทึกการแก้ไข' : 'บันทึกสูตร',
+          onClick: () => {
+            if (editing && !confirmAction(`ยืนยันบันทึกการแก้ไขสูตร ${editing}?`)) return;
+            store.addRecipe();
+          }
+        }),
+        when(editing, () => el('button', { class: 'btn', text: 'ยกเลิก', onClick: () => store.cancelEditRecipe() }))
+      )
     )
   );
+  node.id = 'recipe-form';
+  return node;
 }
 
 function varianceRows(variance) {
@@ -244,7 +258,15 @@ function registryRows(state) {
         tdNum(r.capPerDay ? `${n(r.capPerDay)} ${r.unit}` : '—'),
         el('td', { class: 'num' },
           el('span', { class: ['strong', cap.units ? 'tone-ink' : 'ink-danger'], text: `${n(cap.units)} ${r.unit}` })),
-        td(el('span', { class: 'card__note', text: boundText(cap) }))
+        td(el('span', { class: 'card__note', text: boundText(cap) })),
+        td(when(store.canEdit('recipe'), () => el('button', {
+          class: 'btn btn--small', text: 'แก้ไข',
+          onClick: () => {
+            store.startEditRecipe(r.id);
+            const form = document.getElementById('recipe-form');
+            if (form) form.scrollIntoView({ block: 'start' });
+          }
+        })))
       );
     });
 }

@@ -268,6 +268,33 @@ export async function insertRecipe(recipe) {
   must(result, 'เพิ่มรายการวัตถุดิบในสูตร');
 }
 
+/**
+ * Corrects a saved recipe. The new lines are upserted first and only the
+ * lines that were dropped are deleted afterwards, so a failure part-way
+ * never leaves the recipe with fewer ingredients than it had. `withPrep`
+ * is true when any line has, or used to have, a prep figure — then
+ * prep_qty is sent for every line, so clearing one really clears it.
+ */
+export async function updateRecipe(id, recipe, withPrep) {
+  const rows = recipe.lines.map(l => ({
+    recipe_id: id, item_code: l.code, qty: l.qty,
+    ...(withPrep ? { prep_qty: l.prepQty ?? null } : {})
+  }));
+  const up = await supabase.from('recipe_lines').upsert(rows, { onConflict: 'recipe_id,item_code' });
+  if (up.error && /prep_qty/.test(up.error.message)) {
+    throw new SchemaMissingError('ฐานข้อมูลยังไม่มีคอลัมน์สำหรับเก็บน้ำหนักหลังเตรียม — ทำตามกล่องแจ้งเตือนสีเหลืองด้านบนของหน้า แล้วกดบันทึกใหม่');
+  }
+  must(up, 'แก้ไขรายการวัตถุดิบในสูตร');
+
+  const keep = recipe.lines.map(l => `"${l.code}"`).join(',');
+  must(await supabase.from('recipe_lines').delete().eq('recipe_id', id).not('item_code', 'in', `(${keep})`),
+    'ลบวัตถุดิบที่เอาออกจากสูตร');
+
+  must(await supabase.from('recipes').update({
+    product: recipe.product, unit: recipe.unit, net: recipe.net, cap_per_day: recipe.capPerDay
+  }).eq('id', id), 'แก้ไขสูตร');
+}
+
 /** One receipt: a new lot plus its matching 'รับเข้า' ledger row. */
 export async function insertReceipt(lot, move, supplierId) {
   must(await supabase.from('lots').insert({
