@@ -9,6 +9,7 @@
 
 import { el, render, when } from './ui/dom.js';
 import { store } from './core/store.js';
+import { PENDING_SCHEMA_SQL } from './core/db.js';
 import { config } from './config.js';
 import { exportExcel, exportPdf } from './core/export.js';
 import { ALL_BRANCHES, costOf, liveLots, stockByItem, weightOf } from './core/inventory.js';
@@ -232,6 +233,33 @@ function topbar(state) {
  */
 let shownView = null;
 let shownToast = null;
+let shownSchemaBanner = false;
+
+/** Shown when a save needs database columns that aren't there yet: the SQL, a copy button, and a link that opens the SQL editor with it already filled in. */
+function schemaBanner() {
+  const ref = new URL(config.supabaseUrl).hostname.split('.')[0];
+  const editorUrl = `https://supabase.com/dashboard/project/${ref}/sql/new?content=${encodeURIComponent(PENDING_SCHEMA_SQL)}`;
+  const copy = e => {
+    navigator.clipboard.writeText(PENDING_SCHEMA_SQL).then(
+      () => { e.target.textContent = 'คัดลอกแล้ว ✓'; },
+      () => { e.target.textContent = 'คัดลอกไม่ได้ — เลือกข้อความแล้วคัดลอกเอง'; }
+    );
+  };
+  return el('section', { class: 'banner', 'data-print': 'hide' },
+    el('div', { class: 'banner__title', text: 'ต้องเพิ่มคอลัมน์ในฐานข้อมูลก่อน จึงจะบันทึกค่านี้ได้ (ทำครั้งเดียว ไม่กระทบข้อมูลเดิม)' }),
+    el('ol', { class: 'banner__steps' },
+      el('li', { text: 'กด "เปิด Supabase SQL Editor" (ล็อกอิน Supabase ถ้าถูกถาม) — SQL จะถูกใส่ไว้ให้แล้ว' }),
+      el('li', { text: 'กดปุ่ม Run ที่มุมขวาล่างของ Supabase รอจนขึ้น Success' }),
+      el('li', { text: 'กลับมาที่หน้านี้ กด "ทำแล้ว ปิดข้อความ" แล้วกดบันทึกใหม่ (ข้อมูลที่กรอกยังอยู่ ถ้ายังไม่ได้รีเฟรชหน้า)' })
+    ),
+    el('pre', { class: 'banner__sql', text: PENDING_SCHEMA_SQL }),
+    el('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } },
+      el('a', { class: 'btn btn--primary', href: editorUrl, target: '_blank', rel: 'noopener', text: 'เปิด Supabase SQL Editor' }),
+      el('button', { class: 'btn', text: 'คัดลอก SQL', onClick: copy }),
+      el('button', { class: 'btn', text: 'ทำแล้ว ปิดข้อความ', onClick: () => store.set({ schemaSetup: false }) })
+    )
+  );
+}
 
 function appView(state) {
   // Belt-and-suspenders: the nav item is already hidden from non-admins, but
@@ -244,7 +272,7 @@ function appView(state) {
     sidebar(state),
     el('main', { class: 'main', 'data-print': 'grow' },
       topbar(state),
-      el('div', { class: ['page', state.view !== shownView && 'page--enter'] }, view())
+      el('div', { class: ['page', state.view !== shownView && 'page--enter'] }, when(state.schemaSetup, schemaBanner), view())
     ),
     when(state.toast, () => el('div', { class: ['toast', state.toast !== shownToast && 'toast--enter'], 'data-print': 'hide' },
       el('span', { class: ['toast__dot', 'toast__dot--' + state.toast.tone] }),
@@ -304,7 +332,17 @@ function mount() {
     shownView = store.state.auth ? store.state.view : null;
     shownToast = store.state.toast;
     restoreFocus(snapshot, root);
-    window.scrollTo({ top: scroll });
+    // The banner sits at the top of the page but the failed save is usually
+    // far down it — bring the banner into view the moment it first appears.
+    const bannerNow = Boolean(store.state.schemaSetup && store.state.auth);
+    if (bannerNow && !shownSchemaBanner) {
+      const banner = root.querySelector('.banner');
+      // Instant, not smooth: the toast's redraw right after would cancel a smooth scroll midway.
+      if (banner) banner.scrollIntoView({ block: 'start' });
+    } else {
+      window.scrollTo({ top: scroll });
+    }
+    shownSchemaBanner = bannerNow;
   };
 
   store.subscribe(draw);

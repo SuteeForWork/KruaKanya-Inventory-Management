@@ -184,7 +184,9 @@ class Store {
       editMoveDate: '',
       editMoveTime: '',
       // Which production record is loaded into the output form for correction.
-      editingOutput: null
+      editingOutput: null,
+      // Set when a save needs database columns that haven't been added yet.
+      schemaSetup: false
     };
   }
 
@@ -254,6 +256,8 @@ class Store {
       await fn();
       return true;
     } catch (e) {
+      // A column the database doesn't have yet — show the banner with the SQL to add it.
+      if (e.schemaMissing) this.set({ schemaSetup: true });
       this.say(`${action}ไม่สำเร็จ — ${e.message}`, true);
       return false;
     }

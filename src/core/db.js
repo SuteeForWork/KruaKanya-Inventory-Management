@@ -23,6 +23,23 @@ const num = v => (v === null || v === undefined ? 0 : Number(v));
 /** Postgres `time` comes back as 'HH:MM:SS' — the app displays 'HH:MM'. */
 const hm = t => (t ? t.slice(0, 5) : t);
 
+/**
+ * The column additions the app is waiting on (migrations 010 + 011), in one
+ * paste-able script — every statement is additive and safe to re-run.
+ * A write that needs one throws SchemaMissingError, and the app shows this
+ * SQL with copy / open-SQL-editor buttons instead of a bare error.
+ */
+export const PENDING_SCHEMA_SQL = [
+  'alter table recipe_lines add column if not exists prep_qty numeric;',
+  'alter table outputs add column if not exists pork_kg           numeric;',
+  'alter table outputs add column if not exists trim_fat_kg       numeric;',
+  'alter table outputs add column if not exists other_ingredients jsonb;'
+].join('\n');
+
+export class SchemaMissingError extends Error {
+  constructor(message) { super(message); this.schemaMissing = true; }
+}
+
 function must(result, action) {
   if (result.error) throw new Error(`${action}: ${result.error.message}`);
   return result.data;
@@ -245,7 +262,7 @@ export async function insertRecipe(recipe) {
     // Don't leave a recipe behind with no ingredients.
     await supabase.from('recipes').delete().eq('id', recipe.id);
     if (/prep_qty/.test(result.error.message)) {
-      throw new Error('ฐานข้อมูลยังไม่มีคอลัมน์น้ำหนักหลังเตรียม — ต้องรัน db/migrations/011_recipe_prep_weight.sql ก่อน');
+      throw new SchemaMissingError('ฐานข้อมูลยังไม่มีคอลัมน์สำหรับเก็บน้ำหนักหลังเตรียม — ทำตามกล่องแจ้งเตือนสีเหลืองด้านบนของหน้า แล้วกดบันทึกใหม่');
     }
   }
   must(result, 'เพิ่มรายการวัตถุดิบในสูตร');
@@ -373,7 +390,7 @@ const outputExtras = o => ({
 
 function checkOutputColumns(result) {
   if (result.error && /pork_kg|trim_fat_kg|other_ingredients/.test(result.error.message)) {
-    throw new Error('ฐานข้อมูลยังไม่มีคอลัมน์สำหรับหมู/วัตถุดิบอื่น — ต้องรัน db/migrations/010_output_pork_and_ingredients.sql ก่อน');
+    throw new SchemaMissingError('ฐานข้อมูลยังไม่มีคอลัมน์สำหรับน้ำหนักหมู/วัตถุดิบอื่น — ทำตามกล่องแจ้งเตือนสีเหลืองด้านบนของหน้า แล้วกดบันทึกใหม่');
   }
   return result;
 }
