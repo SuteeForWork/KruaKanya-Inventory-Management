@@ -5,7 +5,7 @@ import {
   badge, card, moveTone, statCard, table, td, tdCode, tdNum, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
-import { baht, kg, n, shortDate } from '../../core/format.js';
+import { baht, kg, n, shortDate, units } from '../../core/format.js';
 import { today } from '../../config.js';
 import {
   ageLeftOf, costOf, expiryOf, liveLots, lowStock, scopedMoves,
@@ -101,14 +101,14 @@ function alertList(state) {
       return {
         tone: statusOf(days).tone,
         title: `${lot.name} · ${lot.id}`,
-        meta: `หมดอายุ ${shortDate(expiryOf(lot))} · คงเหลือ ${n(lot.qtyLeft)} หน่วย · ${baht(costOf(lot))}`,
+        meta: `หมดอายุ ${shortDate(expiryOf(lot))} · คงเหลือ ${units(lot.qtyLeft)} หน่วย · ${baht(costOf(lot))}`,
         badge: days <= 0 ? 'หมดอายุแล้ว' : `อีก ${days} วัน`
       };
     });
 
   const reorder = lowStock(state).map(r => {
     const isCount = r.item.trackBy === 'count';
-    const left = isCount ? `${n(r.qtyLeft)} ${r.item.unit}` : kg(r.weightLeft);
+    const left = isCount ? `${units(r.qtyLeft)} ${r.item.unit}` : kg(r.weightLeft);
     const min = isCount ? `${n(r.item.minStock)} ${r.item.unit}` : `${n(r.item.minStock)} กก.`;
     return {
       tone: 'watch',
@@ -144,7 +144,7 @@ export function moveRow(state, m) {
     td(badge(m.type, moveTone(m.type))),
     tdCode(m.id),
     td(m.name),
-    tdNum(n(m.qty)),
+    tdNum(units(m.qty)),
     tdNum(n(m.weight, 1)),
     tdNum(baht(m.cost)),
     td(m.user)

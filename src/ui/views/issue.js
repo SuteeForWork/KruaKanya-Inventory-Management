@@ -2,13 +2,13 @@
 
 import { el, when } from '../dom.js';
 import {
-  badge, card, confirmAction, fieldGrid, inputField, selectField,
+  badge, card, compoundField, confirmAction, fieldGrid, inputControl, inputField, selectControl, selectField,
   table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store, PURPOSES } from '../../core/store.js';
-import { baht, fullDateTime, kg, n, shortDate } from '../../core/format.js';
+import { baht, fullDateTime, gram, kg, kgNum, n, shortDate, toKg, units } from '../../core/format.js';
 import {
-  ALL_BRANCHES, ageLeftOf, allocate, expiryOf, sortedMoves, stockByItem
+  ALL_BRANCHES, ageLeftOf, allocate, allocateByWeight, expiryOf, sortedMoves, stockByItem
 } from '../../core/inventory.js';
 
 /** The raw-computer-clock column is an audit check against backdating —
@@ -23,11 +23,21 @@ function head(isAdmin) {
   return cols;
 }
 
+/** Issue by the item's own unit, or by weight in grams / kilograms. */
+function qtyModeOptions(state) {
+  const item = state.items.find(i => i.code === state.issueForm.code);
+  return [
+    { value: 'unit', label: item ? item.unit : 'หน่วย' },
+    { value: 'g', label: 'กรัม' },
+    { value: 'kg', label: 'กิโลกรัม' }
+  ];
+}
+
 function issueForm(state) {
   const f = state.issueForm;
   const stockOptions = stockByItem(state)
     .filter(r => r.qtyLeft > 0)
-    .map(r => ({ value: r.item.code, label: `${r.item.code} · ${r.item.name} (คงเหลือ ${r.qtyLeft} ${r.item.unit})` }));
+    .map(r => ({ value: r.item.code, label: `${r.item.code} · ${r.item.name} (คงเหลือ ${units(r.qtyLeft)} ${r.item.unit}${r.weightLeft > 0 ? ` ≈ ${gram(r.weightLeft)} กรัม` : ''})` }));
 
   const destOptions = state.branches
     .filter(b => b.id !== state.branch)
@@ -37,7 +47,10 @@ function issueForm(state) {
     el('h2', { style: { margin: '0 0 14px', fontSize: '14.5px', fontWeight: '600' }, text: 'เบิกวัตถุดิบออก' }),
     fieldGrid('sm',
       selectField('รหัส / ชื่อวัตถุดิบ', 'issueForm', 'code', stockOptions, { placeholder: '— เลือกวัตถุดิบ —' }),
-      inputField('จำนวนที่เบิกออก (หน่วย)', 'issueForm', 'qty', { type: 'number', placeholder: '5', mono: true }),
+      compoundField('จำนวน / น้ำหนักที่เบิกออก',
+        inputControl('issueForm', 'qty', { type: 'number', placeholder: f.qtyMode === 'unit' ? '5' : '5000' }),
+        selectControl('issueForm', 'qtyMode', qtyModeOptions(state))
+      ),
       inputField('วันที่เบิกออก', 'issueForm', 'date', { type: 'date' }),
       inputField('เวลาที่เบิกออก', 'issueForm', 'time', { type: 'time' }),
       inputField('ชื่อผู้เบิกออก', 'issueForm', 'issuer', { placeholder: 'เช่น เชฟกวิน ร.' }),
@@ -60,10 +73,13 @@ function issueForm(state) {
 /** Shows exactly which lots FEFO will draw down, and at what cost. */
 function allocationPanel(state) {
   const f = state.issueForm;
-  const plan = f.code ? allocate(state, f.code, f.qty) : { rows: [], shortBy: 0 };
+  const byWeight = f.qtyMode === 'g' || f.qtyMode === 'kg';
+  const plan = !f.code ? { rows: [], shortBy: 0 }
+    : byWeight ? allocateByWeight(state, f.code, toKg(f.qty, f.qtyMode))
+    : allocate(state, f.code, f.qty);
 
-  const weight = plan.rows.reduce((a, r) => a + r.take * r.lot.weightPerUnit, 0);
-  const cost = plan.rows.reduce((a, r) => a + r.take * r.lot.pricePerUnit, 0);
+  const weight = plan.rows.reduce((a, r) => a + (r.takeKg ?? r.take * r.lot.weightPerUnit), 0);
+  const cost = plan.rows.reduce((a, r) => a + (r.cost ?? r.take * r.lot.pricePerUnit), 0);
 
   const ages = plan.rows.map(r => ageLeftOf(r.lot));
   const ageText = !ages.length ? '—'
@@ -71,7 +87,9 @@ function allocationPanel(state) {
     : `${ages[0]} วัน`;
 
   const note = plan.shortBy > 0
-    ? `⚠ สต๊อกไม่พอ ขาดอีก ${n(plan.shortBy)} หน่วย`
+    ? `⚠ สต๊อกไม่พอ ขาดอีก ${byWeight ? gram(plan.shortBy) + ' กรัม' : n(plan.shortBy) + ' หน่วย'}`
+    : byWeight && f.qty && f.code && !plan.rows.length
+      ? '⚠ วัตถุดิบนี้ไม่มีน้ำหนักต่อหน่วย — เบิกเป็นหน่วยแทน'
     : plan.rows.length
       ? 'ต้นทุนคิดตามราคาจริงของแต่ละล็อต (FEFO)'
       : 'เลือกวัตถุดิบและจำนวนเพื่อดูล็อตที่จะถูกตัด';
@@ -87,12 +105,12 @@ function allocationPanel(state) {
         el('div', { class: 'alloc__exp', text: `หมดอายุ ${shortDate(expiryOf(r.lot))} · เหลืออายุ ${ageLeftOf(r.lot)} วัน` })
       ),
       el('div', { style: { textAlign: 'right' } },
-        el('div', { class: 'alloc__qty', text: `${n(r.take)} ${r.lot.unit}` }),
-        el('div', { class: 'alloc__cost', text: baht(r.take * r.lot.pricePerUnit) })
+        el('div', { class: 'alloc__qty', text: byWeight ? `${gram(r.takeKg)} กรัม · ${units(r.take)} ${r.lot.unit}` : `${units(r.take)} ${r.lot.unit}` }),
+        el('div', { class: 'alloc__cost', text: baht(r.cost ?? r.take * r.lot.pricePerUnit) })
       )
     )),
     el('div', { class: 'recap' },
-      recapRow('น้ำหนักที่เบิกออก', weight ? kg(weight) : '—'),
+      recapRow('น้ำหนักที่เบิกออก', weight ? (byWeight ? `${gram(weight)} กรัม` : kg(weight)) : '—'),
       recapRow('อายุวัตถุดิบ ณ วันเบิก', ageText),
       recapRow('ราคาวัตถุดิบที่เบิกออก', cost ? baht(cost) : '—', 'tone-cost'),
       el('div', { class: 'recap__note', text: note })
@@ -199,8 +217,8 @@ function historyRows(state) {
         tdCode(m.id),
         dateTimeCell(state, m),
         tdTitled(m.name, `${m.code} · ${m.lotId}`),
-        tdNum(n(m.qty)),
-        tdNum(n(m.weight, 1)),
+        tdNum(units(m.qty)),
+        tdNum(kgNum(m.weight)),
         tdNum(m.age === undefined ? '—' : n(m.age)),
         td(m.user),
         tdNum(baht(m.cost)),

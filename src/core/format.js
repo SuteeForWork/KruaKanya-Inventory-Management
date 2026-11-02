@@ -9,6 +9,12 @@ export function n(value, decimals = 0) {
   });
 }
 
+/** A quantity of units: whole numbers as they are, a fraction (0.667 of a bag, from issuing by weight) to 3 places without trailing zeros. */
+export function units(value) {
+  const x = Number(value) || 0;
+  return Number.isInteger(x) ? n(x) : n(x, 3).replace(/\.?0+$/, '');
+}
+
 /** Thai baht — whole baht when the amount is whole, satang (2 decimals)
  *  when it isn't, so a decimal unit price doesn't display as a rounded-off
  *  total. Pass `decimals` to force a fixed precision. */

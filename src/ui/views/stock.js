@@ -5,7 +5,7 @@ import {
   badge, card, meter, statCard, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
-import { baht, kgNum, n, shortDate } from '../../core/format.js';
+import { baht, kgNum, n, shortDate, units } from '../../core/format.js';
 import {
   ageLeftOf, costOf, expiryOf, liveLots,
   statusOf, stockByItem, warnDays, weightOf
@@ -48,7 +48,7 @@ function itemRows(state) {
 
       return tr(
         tdTitled(r.item.name, `${r.item.code} · ${r.item.category}`),
-        tdNum(`${n(r.qtyLeft)} ${r.item.unit}`),
+        tdNum(`${units(r.qtyLeft)} ${r.item.unit}`),
         tdNum(isCount ? '—' : kgNum(r.weightLeft)),
         td(meter(pct, belowReorder ? 'warn' : 'ok', {
           stacked: true,
@@ -76,7 +76,7 @@ function lotRows(state) {
         tdCode(shortDate(l.recvDate)),
         tdCode(shortDate(expiryOf(l))),
         tdNum(n(days)),
-        tdNum(`${n(l.qtyLeft)} ${l.unit}`),
+        tdNum(`${units(l.qtyLeft)} ${l.unit}`),
         tdNum(l.weightPerUnit ? kgNum(weightOf(l)) : '—'),
         tdNum(`${baht(l.pricePerUnit, 2)} / ${l.unit}`),
         tdNum(l.weightPerUnit ? `${baht(l.pricePerUnit / l.weightPerUnit, 2)} / กก.` : '—'),

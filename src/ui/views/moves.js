@@ -5,7 +5,7 @@ import {
   badge, card, moveTone, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store, MOVE_FILTERS } from '../../core/store.js';
-import { baht, kg, n, shortDate } from '../../core/format.js';
+import { baht, kg, n, shortDate, units } from '../../core/format.js';
 import { sortedMoves } from '../../core/inventory.js';
 
 const HEAD = [
@@ -56,7 +56,7 @@ export function movesView() {
     tdCode(m.id),
     tdCode(m.lotId),
     tdTitled(m.name, m.code),
-    tdNum(n(m.qty)),
+    tdNum(units(m.qty)),
     tdNum(n(m.weight, 1)),
     tdNum(baht(m.cost)),
     td(m.user),

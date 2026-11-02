@@ -13,9 +13,9 @@
 
 import { seed } from '../data/seed.js';
 import { config, today } from '../config.js';
-import { clockTime, gram, kg, baht, n, toISODate, toKg } from './format.js';
+import { clockTime, gram, kg, baht, n, toISODate, toKg, units } from './format.js';
 import {
-  ALL_BRANCHES, allocate, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn
+  ALL_BRANCHES, allocate, allocateByWeight, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn, roundUnits
 } from './inventory.js';
 import { bomLineUnit, outputFigures, outputIngredients, recipeFromForm, recipePlan } from './production.js';
 import {
@@ -79,7 +79,7 @@ const blankReceive = () => ({
  * exactly the "wrong date" bug this field exists to let someone correct.
  */
 const blankIssue = () => ({
-  code: '', qty: '', issuer: '', purpose: 'เบิกผลิต', note: '', dest: '',
+  code: '', qty: '', qtyMode: 'unit', issuer: '', purpose: 'เบิกผลิต', note: '', dest: '',
   date: toISODate(new Date()), time: clockTime()
 });
 
@@ -861,8 +861,8 @@ class Store {
       return;
     }
 
-    const alreadyOut = original.qtyIn - original.qtyLeft;
-    const qtyLeft = qtyIn - alreadyOut;
+    const alreadyOut = roundUnits(original.qtyIn - original.qtyLeft);
+    const qtyLeft = roundUnits(qtyIn - alreadyOut);
     if (qtyLeft < 0) {
       this.say(`ลดจำนวนต่ำกว่า ${n(alreadyOut)} หน่วยไม่ได้ — ถูกเบิก/โอนออกไปแล้วเท่านั้น`, true);
       return;
@@ -1000,17 +1000,29 @@ class Store {
     if (!this.guard('issue') || !this.requireBranch()) return;
 
     const f = this.state.issueForm;
-    const qty = Number(f.qty) || 0;
-    if (!f.code || !qty) {
+    const typed = Number(f.qty) || 0;
+    if (!f.code || !typed) {
       this.say('เลือกวัตถุดิบและระบุจำนวนที่ต้องการเบิกออก', true);
       return;
     }
 
-    const plan = allocate(this.state, f.code, qty);
-    if (plan.shortBy > 0) {
-      this.say(`สต๊อกไม่พอ — ขาดอีก ${n(plan.shortBy)} หน่วย`, true);
+    // Issued by units (ถุง, แพ็ค…) or by weight (g / kg). By weight, each lot is
+    // converted through its own unit weight, so the units drawn can be a fraction.
+    const byWeight = f.qtyMode === 'g' || f.qtyMode === 'kg';
+    const plan = byWeight
+      ? allocateByWeight(this.state, f.code, toKg(typed, f.qtyMode))
+      : allocate(this.state, f.code, typed);
+    if (byWeight && !plan.rows.length) {
+      this.say('วัตถุดิบนี้ไม่มีน้ำหนักต่อหน่วย เบิกเป็นหน่วยแทน (หรือใส่น้ำหนักต่อหน่วยที่หน้าวัตถุดิบ)', true);
       return;
     }
+    if (plan.shortBy > 0) {
+      this.say(byWeight
+        ? `สต๊อกไม่พอ — ขาดอีก ${gram(plan.shortBy)} กรัม`
+        : `สต๊อกไม่พอ — ขาดอีก ${n(plan.shortBy)} หน่วย`, true);
+      return;
+    }
+    const qty = roundUnits(plan.rows.reduce((a, r) => a + r.take, 0));
 
     const date = f.date || toISODate(new Date());
     const time = f.time || clockTime();
@@ -1023,7 +1035,7 @@ class Store {
     // Draw down the source lots.
     const lots = this.state.lots.map(lot => {
       const hit = plan.rows.find(r => r.lot.id === lot.id);
-      return hit ? { ...lot, qtyLeft: lot.qtyLeft - hit.take } : lot;
+      return hit ? { ...lot, qtyLeft: roundUnits(lot.qtyLeft - hit.take) } : lot;
     });
 
     const issueMoves = plan.rows.map((r, i) => ({
@@ -1032,8 +1044,8 @@ class Store {
       type: isWaste ? 'ตัดทิ้ง' : 'เบิกออก',
       lotId: r.lot.id, code: r.lot.code, name: r.lot.name,
       date, time, qty: r.take,
-      weight: r.take * r.lot.weightPerUnit,
-      cost: r.take * r.lot.pricePerUnit,
+      weight: r.takeKg ?? r.take * r.lot.weightPerUnit,
+      cost: r.cost ?? r.take * r.lot.pricePerUnit,
       user: f.issuer || '-', purpose: f.purpose,
       age: ageLeftOf(r.lot),
       note: `${f.note || '-'} · อายุคงเหลือ ${ageLeftOf(r.lot)} วัน`
@@ -1055,8 +1067,8 @@ class Store {
           branch: f.dest, id: 'RC-' + id.slice(4), type: 'รับเข้า',
           lotId: id, code: r.lot.code, name: r.lot.name,
           date, time, qty: r.take,
-          weight: r.take * r.lot.weightPerUnit,
-          cost: r.take * r.lot.pricePerUnit,
+          weight: r.takeKg ?? r.take * r.lot.weightPerUnit,
+          cost: r.cost ?? r.take * r.lot.pricePerUnit,
           user: f.issuer || '-', purpose: 'รับโอนระหว่างสาขา',
           note: `รับโอนจาก ${this.branchLabel(from)} · ${doc}`
         });
@@ -1065,7 +1077,7 @@ class Store {
 
     const ok = await this.persist('บันทึกเบิกออก', async () => {
       // Sequential, not a single transaction — see db.js's note on this.
-      for (const r of plan.rows) await db.updateLotQtyLeft(r.lot.id, r.lot.qtyLeft - r.take);
+      for (const r of plan.rows) await db.updateLotQtyLeft(r.lot.id, roundUnits(r.lot.qtyLeft - r.take));
       await db.insertMoves(issueMoves);
       for (const lot of transferLots) await db.insertTransferLot(lot, this.supplierIdByName(lot.supplier));
       if (transferMoves.length) await db.insertMoves(transferMoves);
@@ -1084,8 +1096,8 @@ class Store {
     const tail = isTransfer
       ? ` · โอนเข้า ${this.branchLabel(f.dest)} แล้ว`
       : ` ตัดจาก ${issueMoves.length} ล็อต`;
-    const weightTail = totalWeight ? ` (${kg(totalWeight)})` : '';
-    this.say(`${doc} · ${issueMoves[0].name} ${n(qty)} หน่วย${weightTail} ต้นทุน ${baht(totalCost)}${tail}`);
+    const weightTail = !totalWeight ? '' : byWeight ? ` (${gram(totalWeight)} กรัม)` : ` (${kg(totalWeight)})`;
+    this.say(`${doc} · ${issueMoves[0].name} ${units(qty)} หน่วย${weightTail} ต้นทุน ${baht(totalCost)}${tail}`);
   }
 
   /**
@@ -1159,7 +1171,7 @@ class Store {
     const ok = await this.persist('ยกเลิกการเบิกออก', async () => {
       for (const m of rows) {
         const lot = this.state.lots.find(l => l.id === m.lotId);
-        if (lot) await db.updateLotQtyLeft(lot.id, lot.qtyLeft + m.qty);
+        if (lot) await db.updateLotQtyLeft(lot.id, roundUnits(lot.qtyLeft + m.qty));
       }
       for (const lot of transferLots) await db.deleteLot(lot.id);
       await db.deleteMovesByDoc(docNo);
@@ -1171,7 +1183,7 @@ class Store {
         .filter(l => !transferLots.some(t => t.id === l.id))
         .map(l => {
           const hit = rows.find(m => m.lotId === l.id);
-          return hit ? { ...l, qtyLeft: l.qtyLeft + hit.qty } : l;
+          return hit ? { ...l, qtyLeft: roundUnits(l.qtyLeft + hit.qty) } : l;
         }),
       moves: s.moves.filter(m => m.id !== docNo)
     }));

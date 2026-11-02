@@ -115,6 +115,51 @@ export function allocate(state, code, qty) {
   return { rows, shortBy: need };
 }
 
+/** Float noise from dividing a weight into fractions of a unit isn't worth keeping — 6 places is far below a gram. */
+export const roundUnits = x => Math.round(x * 1e6) / 1e6;
+
+/**
+ * What one unit of a lot weighs, kg. A lot carries its own snapshot; a
+ * counted item whose lots carry none (weight 0) falls back to the weight per
+ * unit set on the item, which is what lets stock counted in bags be issued
+ * by weight. 0 means it can't be weighed at all.
+ */
+export function unitWeightOf(state, lot) {
+  if (lot.weightPerUnit > 0) return lot.weightPerUnit;
+  const item = state.items.find(i => i.code === lot.code);
+  return item && item.weightPerUnit > 0 ? item.weightPerUnit : 0;
+}
+
+/**
+ * FEFO allocation by weight: draw `kg` from the live lots oldest-expiry-first.
+ * Each lot is converted through its own unit weight, so the units taken can
+ * be a fraction (5 kg from a 15 kg bag takes a third of it). Rows have the
+ * same shape allocate() returns plus `takeKg`; `shortBy` is the kg left over.
+ */
+export function allocateByWeight(state, code, kg) {
+  let need = Number(kg) || 0;
+  const rows = [];
+  for (const lot of liveLots(state)) {
+    if (need <= 1e-9) break;
+    if (lot.code !== code) continue;
+    const w = unitWeightOf(state, lot);
+    if (!(w > 0)) continue;
+    const availKg = lot.qtyLeft * w;
+    const takeKg = Math.min(need, availKg);
+    const take = takeKg >= availKg ? lot.qtyLeft : Math.min(lot.qtyLeft, roundUnits(takeKg / w));
+    need -= takeKg;
+    // A whole lot is exactly its units; a partial draw is exactly the kg asked for
+    // — not take * w, which carries the rounding of take — and costs the same way.
+    const whole = takeKg >= availKg;
+    rows.push({
+      lot, take,
+      takeKg: whole ? take * w : takeKg,
+      cost: roundUnits((whole ? take : takeKg / w) * lot.pricePerUnit)
+    });
+  }
+  return { rows, shortBy: need > 1e-9 ? need : 0 };
+}
+
 /** Per-item roll-up of the live lots, plus the ages that drive the badges. */
 export function stockByItem(state) {
   const live = liveLots(state);
