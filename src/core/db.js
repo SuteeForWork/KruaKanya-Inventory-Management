@@ -33,7 +33,8 @@ export const PENDING_SCHEMA_SQL = [
   'alter table recipe_lines add column if not exists prep_qty numeric;',
   'alter table outputs add column if not exists pork_kg           numeric;',
   'alter table outputs add column if not exists trim_fat_kg       numeric;',
-  'alter table outputs add column if not exists other_ingredients jsonb;'
+  'alter table outputs add column if not exists other_ingredients jsonb;',
+  "alter table items add column if not exists kind text not null default 'material';"
 ].join('\n');
 
 export class SchemaMissingError extends Error {
@@ -66,7 +67,8 @@ const toItem = row => ({
   mainSupplier: row.suppliers ? row.suppliers.name : null,
   trackBy: row.track_by || 'weight',
   packUnit: row.pack_unit || '', packSize: row.pack_size === null ? null : num(row.pack_size),
-  caseUnit: row.case_unit || '', caseSize: row.case_size === null ? null : num(row.case_size)
+  caseUnit: row.case_unit || '', caseSize: row.case_size === null ? null : num(row.case_size),
+  kind: row.kind || 'material'
 });
 
 const toRecipe = row => ({
@@ -212,16 +214,29 @@ export async function updateSupplier(id, supplier) {
   }).eq('id', id), 'แก้ไขซัพพลายเออร์');
 }
 
+/**
+ * items.kind comes from migration 012 and is only sent for a supply, so
+ * saving an ordinary material works on a database without it; saving a
+ * supply there raises the set-up banner instead of a raw column error.
+ */
+function checkKindColumn(result) {
+  if (result.error && /'kind' column/.test(result.error.message)) {
+    throw new SchemaMissingError('ฐานข้อมูลยังไม่มีคอลัมน์ประเภทรายการ (ของใช้สิ้นเปลือง) — ทำตามกล่องแจ้งเตือนสีเหลืองด้านบนของหน้า แล้วกดบันทึกใหม่');
+  }
+  return result;
+}
+
 export async function insertItem(item, mainSupplierId) {
-  must(await supabase.from('items').insert({
+  must(checkKindColumn(await supabase.from('items').insert({
     code: item.code, name: item.name, category: item.category, unit: item.unit,
     weight_per_unit: item.weightPerUnit, shelf_life: item.shelfLife,
     min_stock: item.minStock, storage: item.storage,
     main_supplier_id: mainSupplierId || null,
     track_by: item.trackBy || 'weight',
     pack_unit: item.packUnit || null, pack_size: item.packSize || null,
-    case_unit: item.caseUnit || null, case_size: item.caseSize || null
-  }), 'เพิ่มวัตถุดิบ');
+    case_unit: item.caseUnit || null, case_size: item.caseSize || null,
+    ...(item.kind && item.kind !== 'material' ? { kind: item.kind } : {})
+  })), 'เพิ่มวัตถุดิบ');
 }
 
 /**
@@ -230,8 +245,9 @@ export async function insertItem(item, mainSupplierId) {
  * db/migrations/001_item_code_on_update_cascade.sql), so renaming it here
  * renames it everywhere it's used too.
  */
-export async function updateItem(oldCode, newCode, item, mainSupplierId) {
-  must(await supabase.from('items').update({
+/** `withKind` is true when the item is, or was, a supply — so turning one back into a material really saves. */
+export async function updateItem(oldCode, newCode, item, mainSupplierId, withKind = false) {
+  must(checkKindColumn(await supabase.from('items').update({
     code: newCode,
     name: item.name, category: item.category, unit: item.unit,
     weight_per_unit: item.weightPerUnit, shelf_life: item.shelfLife,
@@ -239,8 +255,9 @@ export async function updateItem(oldCode, newCode, item, mainSupplierId) {
     main_supplier_id: mainSupplierId || null,
     track_by: item.trackBy || 'weight',
     pack_unit: item.packUnit || null, pack_size: item.packSize || null,
-    case_unit: item.caseUnit || null, case_size: item.caseSize || null
-  }).eq('code', oldCode), 'แก้ไขวัตถุดิบ');
+    case_unit: item.caseUnit || null, case_size: item.caseSize || null,
+    ...(withKind ? { kind: item.kind || 'material' } : {})
+  }).eq('code', oldCode)), 'แก้ไขวัตถุดิบ');
 }
 
 export async function insertRecipe(recipe) {

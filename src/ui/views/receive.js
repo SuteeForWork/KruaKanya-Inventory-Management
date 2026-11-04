@@ -6,8 +6,14 @@ import {
   submitRow, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
-import { addDays, baht, kg, kgNum, n, shortDate, toKg } from '../../core/format.js';
-import { baseQtyFor, expiryOf, scopedLots, unitLevels } from '../../core/inventory.js';
+import { addDays, baht, kg, kgNum, n, optDate, shortDate, toKg, units } from '../../core/format.js';
+import { baseQtyFor, expiryOf, isSupplyItem, scopedLots, unitLevels } from '../../core/inventory.js';
+
+/** A supply with no shelf life (A4 paper, tissue) has no production date or expiry to record. */
+const neverExpires = item => isSupplyItem(item) && !(item.shelfLife > 0);
+
+/** Dropdown label for an item — supplies say so, so they aren't mistaken for ingredients. */
+const itemLabel = i => `${i.code} · ${i.name}${isSupplyItem(i) ? (i.kind === 'office' ? ' (ของใช้สำนักงาน)' : ' (ของใช้ในครัว)') : ''}`;
 
 const WEIGHT_UNIT_OPTIONS = [{ value: 'kg', label: 'กก.' }, { value: 'g', label: 'ก.' }];
 
@@ -37,7 +43,10 @@ function preview(state) {
     rows.push({ label: 'น้ำหนักรับเข้ารวม', value: totalWeight ? kg(totalWeight) : '—', variant: 'green' });
   }
   rows.push({ label: 'มูลค่ารวม', value: totalCost ? baht(totalCost) : '—', variant: 'cost' });
-  rows.push({ label: 'วันหมดอายุ (คำนวณ)', value: shelfLife && f.mfgDate ? shortDate(addDays(f.mfgDate, shelfLife)) : '—' });
+  rows.push({
+    label: 'วันหมดอายุ (คำนวณ)',
+    value: neverExpires(item) ? 'ไม่มีวันหมดอายุ' : shelfLife && f.mfgDate ? shortDate(addDays(f.mfgDate, shelfLife)) : '—'
+  });
   if (!isCount) {
     rows.push({ label: 'ต้นทุน/กก.', value: totalWeight ? baht(totalCost / totalWeight, 2) : '—' });
   }
@@ -53,11 +62,12 @@ function form(state) {
   // Choosing a pack level is receiving-time convenience only — an edit
   // always corrects the lot's already-stored base-unit quantity directly.
   const showLevelPicker = !editing && levels.length > 1;
-  const itemOptions = state.items.map(i => ({ value: i.code, label: `${i.code} · ${i.name}` }));
+  const itemOptions = state.items.map(i => ({ value: i.code, label: itemLabel(i) }));
   const supplierOptions = state.suppliers.map(s => ({ value: s.name, label: s.name }));
+  const noExpiry = neverExpires(item);
 
   return formCard({
-    title: editing ? `แก้ไขรายการรับเข้า · ${editing}` : 'บันทึกรับวัตถุดิบเข้า',
+    title: editing ? `แก้ไขรายการรับเข้า · ${editing}` : 'บันทึกรับวัตถุดิบ / ของใช้เข้า',
     note: editing ? 'แก้ไขได้ทุกช่องยกเว้นรหัสวัตถุดิบ' : `ล็อตถัดไป · ${store.nextLotId()}`
   },
     fieldGrid(null,
@@ -71,8 +81,8 @@ function form(state) {
       inputField('ชื่อวัตถุดิบ', 'receiveForm', 'name', { placeholder: 'เช่น อกไก่สด', disabled: Boolean(editing) }),
       selectField('ชื่อซัพพลายเออร์', 'receiveForm', 'supplier', supplierOptions, { placeholder: '— เลือกซัพพลายเออร์ —' }),
       inputField('ชื่อผู้จัดซื้อ', 'receiveForm', 'buyer', { placeholder: 'ชื่อผู้ทำ PO' }),
-      inputField('วันที่ผลิต', 'receiveForm', 'mfgDate', { type: 'date' }),
-      inputField('อายุวัตถุดิบ (วัน)', 'receiveForm', 'shelfLife', { type: 'number', placeholder: '7', mono: true }),
+      when(!noExpiry, () => inputField('วันที่ผลิต', 'receiveForm', 'mfgDate', { type: 'date' })),
+      when(!noExpiry, () => inputField('อายุวัตถุดิบ (วัน)', 'receiveForm', 'shelfLife', { type: 'number', placeholder: '7', mono: true })),
       when(showLevelPicker, () =>
         selectField('นับจำนวนเป็น', 'receiveForm', 'qtyLevel',
           levels.map(l => ({ value: l.value, label: l.label })))),
@@ -119,13 +129,13 @@ function historyRows(state) {
       return tr(
         tdCode(l.id),
         tdCode(`${shortDate(l.recvDate)} ${l.recvTime}`),
-        tdTitled(l.name, l.code),
+        tdTitled(l.name, isSupplyItem(item) ? `${l.code} · ${item.kind === 'office' ? 'ของใช้สำนักงาน' : 'ของใช้ในครัว'}` : l.code),
         td(l.supplier),
         td(l.buyer),
-        tdCode(shortDate(l.mfgDate)),
-        tdNum(n(l.shelfLife)),
-        tdCode(shortDate(expiryOf(l))),
-        tdNum(`${n(l.qtyIn)} ${l.unit}`),
+        tdCode(l.shelfLife ? shortDate(l.mfgDate) : '—'),
+        tdNum(l.shelfLife ? n(l.shelfLife) : '—'),
+        tdCode(optDate(expiryOf(l), 'ไม่มีวันหมดอายุ')),
+        tdNum(`${units(l.qtyIn)} ${l.unit}`),
         tdNum(isCount ? '—' : kgNum(l.qtyIn * l.weightPerUnit)),
         tdNum(isCount ? '—' : kgNum(l.weightPerUnit)),
         tdNum(baht(l.pricePerUnit)),

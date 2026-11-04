@@ -9,7 +9,7 @@
 import { store } from './store.js';
 import { today } from '../config.js';
 import {
-  ageLeftOf, branchName, branchSummary, costOf, expiryOf,
+  ageLeftOf, branchName, branchSummary, costOf, expiryOf, isSupplyItem,
   liveLots, scopedLots, scopedMoves, scopedOutputs, sortedMoves, weightOf
 } from './inventory.js';
 import { amountText } from './format.js';
@@ -29,7 +29,7 @@ const BUILDERS = {
     const header = ['ล็อต', 'วันที่รับเข้า', 'เวลา', 'ชื่อวัตถุดิบ', 'รหัส', 'ซัพพลายเออร์', 'ผู้จัดซื้อ', 'วันที่ผลิต', 'อายุ(วัน)', 'วันหมดอายุ', 'จำนวนรับเข้า', 'น้ำหนักรับเข้า(กก.)', 'น้ำหนักต่อหน่วย(กก.)', 'ราคาต่อหน่วย', 'มูลค่ารวม'];
     return [header].concat(scopedLots(state).map(l => [
       l.id, l.recvDate, l.recvTime, l.name, l.code, l.supplier, l.buyer,
-      l.mfgDate, l.shelfLife, expiryOf(l),
+      l.shelfLife ? l.mfgDate : '-', l.shelfLife || '-', expiryOf(l) || 'ไม่มีวันหมดอายุ',
       l.qtyIn, l.qtyIn * l.weightPerUnit, l.weightPerUnit, l.pricePerUnit, l.qtyIn * l.pricePerUnit
     ]));
   },
@@ -37,8 +37,9 @@ const BUILDERS = {
   stock(state) {
     const header = ['ล็อต', 'รหัส', 'ชื่อวัตถุดิบ', 'ซัพพลายเออร์', 'หน่วยนับ', 'วันที่รับเข้า', 'วันหมดอายุ', 'อายุคงเหลือ(วัน)', 'จำนวนคงเหลือ', 'น้ำหนักคงเหลือ(กก.)', 'ราคา ณ รับเข้า/หน่วย', 'ราคา ณ รับเข้า/กก.', 'ต้นทุนคงเหลือ'];
     return [header].concat(liveLots(state).map(l => [
-      l.id, l.code, l.name, l.supplier, l.unit, l.recvDate, expiryOf(l), ageLeftOf(l),
-      l.qtyLeft, weightOf(l), l.pricePerUnit, num(l.pricePerUnit / l.weightPerUnit, 2), costOf(l)
+      l.id, l.code, l.name, l.supplier, l.unit, l.recvDate, expiryOf(l) || 'ไม่มีวันหมดอายุ',
+      Number.isFinite(ageLeftOf(l)) ? ageLeftOf(l) : '-',
+      l.qtyLeft, weightOf(l), l.pricePerUnit, l.weightPerUnit ? num(l.pricePerUnit / l.weightPerUnit, 2) : '-', costOf(l)
     ]));
   },
 
@@ -91,8 +92,8 @@ const BUILDERS = {
       'Supplier', s.id, s.name, `${s.contact} / ${s.phone}`, s.category, s.terms, `${s.cert} (คะแนน ${s.score})`
     ]);
     const items = state.items.map(i => [
-      'Item', i.code, i.name, `${i.category} / ${i.unit}`,
-      `น้ำหนักต่อหน่วย ${i.weightPerUnit} กก.`, `อายุ ${i.shelfLife} วัน`,
+      isSupplyItem(i) ? (i.kind === 'office' ? 'ของใช้สำนักงาน' : 'ของใช้ในครัว') : 'Item', i.code, i.name, `${i.category} / ${i.unit}`,
+      `น้ำหนักต่อหน่วย ${i.weightPerUnit} กก.`, i.shelfLife ? `อายุ ${i.shelfLife} วัน` : 'ไม่มีวันหมดอายุ',
       `${i.storage} / ขั้นต่ำ ${i.minStock} กก.`
     ]);
     return [header].concat(suppliers, items);

@@ -11,17 +11,48 @@ import { config, today } from '../config.js';
 export const ALL_BRANCHES = 'ALL';
 
 /* -------------------------------------------------------------------------- */
+/* Item kinds                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What an item is for. Materials (ingredients and packaging) go into recipes
+ * and production cost. Office and kitchen supplies (A4 paper, tissue, kitchen
+ * gloves, hair nets) are stocked, received and issued the same way, but they
+ * never expire unless given a shelf life, are counted rather than weighed,
+ * stay out of BOM recipes, and stay out of production cost and yield.
+ */
+export const ITEM_KINDS = [
+  { value: 'material', label: 'วัตถุดิบ / บรรจุภัณฑ์' },
+  { value: 'office',   label: 'ของใช้สิ้นเปลือง · สำนักงาน' },
+  { value: 'kitchen',  label: 'ของใช้สิ้นเปลือง · ครัว' }
+];
+
+export const isSupplyItem = item => Boolean(item && (item.kind === 'office' || item.kind === 'kitchen'));
+
+export function isSupply(state, code) {
+  return isSupplyItem(state.items.find(i => i.code === code));
+}
+
+export function kindLabel(kind) {
+  return (ITEM_KINDS.find(k => k.value === kind) || ITEM_KINDS[0]).label;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Shelf life                                                                  */
 /* -------------------------------------------------------------------------- */
 
-/** The date a lot expires. */
+/**
+ * The date a lot expires — null when it doesn't: a shelf life of 0 means "no
+ * expiry", which is what an office or kitchen supply (A4 paper, tissue) has.
+ */
 export function expiryOf(lot) {
-  return addDays(lot.mfgDate, lot.shelfLife);
+  return lot.shelfLife > 0 ? addDays(lot.mfgDate, lot.shelfLife) : null;
 }
 
-/** Days of shelf life left today; zero or negative means expired. */
+/** Days of shelf life left today; zero or negative means expired, Infinity means it never expires. */
 export function ageLeftOf(lot) {
-  return diffDays(today(), expiryOf(lot));
+  const expiry = expiryOf(lot);
+  return expiry ? diffDays(today(), expiry) : Infinity;
 }
 
 /** Days the lot has already sat in the store. */
@@ -81,7 +112,8 @@ export function liveLots(state) {
   return state.lots
     .filter(l => l.qtyLeft > 0 && inBranch(l, state.branch))
     .slice()
-    .sort((a, b) => (expiryOf(a) < expiryOf(b) ? -1 : 1));
+    // A lot that never expires goes after every lot that does.
+    .sort((a, b) => ((expiryOf(a) || '9999-12-31') < (expiryOf(b) || '9999-12-31') ? -1 : 1));
 }
 
 /** Usable kilograms of an item — expired lots do not count. */
@@ -237,7 +269,9 @@ export function sortedMoves(state) {
 
 /** What was issued and wasted on a given date, in the active branch. */
 export function issuedOn(state, date) {
-  const scoped = state.moves.filter(m => m.date === date && inBranch(m, state.branch));
+  // Office/kitchen supplies are not production inputs — issuing tissue or A4
+  // paper must not land in a day's raw-material cost or waste.
+  const scoped = state.moves.filter(m => m.date === date && inBranch(m, state.branch) && !isSupply(state, m.code));
   const issues = scoped.filter(m => m.type === 'เบิกออก');
   const waste  = scoped.filter(m => m.type === 'ตัดทิ้ง');
   return {

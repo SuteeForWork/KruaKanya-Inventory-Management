@@ -6,7 +6,7 @@
 
 import { config } from '../config.js';
 import { toKg } from './format.js';
-import { availableKg, availableQty, issuedOn, pricePerKg, pricePerPiece, scopedOutputs, scopedMoves } from './inventory.js';
+import { availableKg, availableQty, isSupply, issuedOn, pricePerKg, pricePerPiece, scopedOutputs, scopedMoves } from './inventory.js';
 
 /* -------------------------------------------------------------------------- */
 /* Recipes                                                                     */
@@ -243,7 +243,7 @@ export function yieldStatus(pct) {
  */
 export function dailyProduction(state) {
   const outputs = scopedOutputs(state);
-  const issueDates = scopedMoves(state).filter(m => m.type === 'เบิกออก').map(m => m.date);
+  const issueDates = scopedMoves(state).filter(m => m.type === 'เบิกออก' && !isSupply(state, m.code)).map(m => m.date);
   const dates = Array.from(new Set(outputs.map(o => o.date).concat(issueDates))).sort().reverse();
 
   return dates.map(date => {

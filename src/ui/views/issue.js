@@ -5,10 +5,10 @@ import {
   badge, card, compoundField, confirmAction, fieldGrid, inputControl, inputField, selectControl, selectField,
   table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
-import { store, PURPOSES } from '../../core/store.js';
-import { baht, fullDateTime, gram, kg, kgNum, n, shortDate, toKg, units } from '../../core/format.js';
+import { store, PURPOSES, SUPPLY_PURPOSES } from '../../core/store.js';
+import { baht, fullDateTime, gram, kg, kgNum, n, optDate, shortDate, toKg, units } from '../../core/format.js';
 import {
-  ALL_BRANCHES, ageLeftOf, allocate, allocateByWeight, expiryOf, sortedMoves, stockByItem
+  ALL_BRANCHES, ageLeftOf, allocate, allocateByWeight, expiryOf, isSupplyItem, sortedMoves, stockByItem
 } from '../../core/inventory.js';
 
 /** The raw-computer-clock column is an audit check against backdating —
@@ -26,6 +26,8 @@ function head(isAdmin) {
 /** Issue by the item's own unit, or by weight in grams / kilograms. */
 function qtyModeOptions(state) {
   const item = state.items.find(i => i.code === state.issueForm.code);
+  // A supply is counted only — tissue and A4 paper aren't issued by weight.
+  if (isSupplyItem(item)) return [{ value: 'unit', label: item.unit }];
   return [
     { value: 'unit', label: item ? item.unit : 'หน่วย' },
     { value: 'g', label: 'กรัม' },
@@ -35,18 +37,26 @@ function qtyModeOptions(state) {
 
 function issueForm(state) {
   const f = state.issueForm;
+  const item = state.items.find(i => i.code === f.code);
+  const supply = isSupplyItem(item);
   const stockOptions = stockByItem(state)
     .filter(r => r.qtyLeft > 0)
-    .map(r => ({ value: r.item.code, label: `${r.item.code} · ${r.item.name} (คงเหลือ ${units(r.qtyLeft)} ${r.item.unit}${r.weightLeft > 0 ? ` ≈ ${gram(r.weightLeft)} กรัม` : ''})` }));
+    .map(r => ({
+      value: r.item.code,
+      label: `${r.item.code} · ${r.item.name}${isSupplyItem(r.item) ? ' [ของใช้]' : ''} (คงเหลือ ${units(r.qtyLeft)} ${r.item.unit}${r.weightLeft > 0 ? ` ≈ ${gram(r.weightLeft)} กรัม` : ''})`
+    }));
 
   const destOptions = state.branches
     .filter(b => b.id !== state.branch)
     .map(b => ({ value: b.id, label: `${b.id} · ${b.name}` }));
 
   return el('section', { class: 'card card--pad' },
-    el('h2', { style: { margin: '0 0 14px', fontSize: '14.5px', fontWeight: '600' }, text: 'เบิกวัตถุดิบออก' }),
+    el('h2', { style: { margin: '0 0 14px', fontSize: '14.5px', fontWeight: '600' }, text: 'เบิกวัตถุดิบ / ของใช้ออก' }),
     fieldGrid('sm',
-      selectField('รหัส / ชื่อวัตถุดิบ', 'issueForm', 'code', stockOptions, { placeholder: '— เลือกวัตถุดิบ —' }),
+      selectField('รหัส / ชื่อรายการ', 'issueForm', 'code', stockOptions, {
+        placeholder: '— เลือกวัตถุดิบหรือของใช้ —',
+        onChange: code => store.pickIssueItem(code)
+      }),
       compoundField('จำนวน / น้ำหนักที่เบิกออก',
         inputControl('issueForm', 'qty', { type: 'number', placeholder: f.qtyMode === 'unit' ? '5' : '5000' }),
         selectControl('issueForm', 'qtyMode', qtyModeOptions(state))
@@ -54,12 +64,14 @@ function issueForm(state) {
       inputField('วันที่เบิกออก', 'issueForm', 'date', { type: 'date' }),
       inputField('เวลาที่เบิกออก', 'issueForm', 'time', { type: 'time' }),
       inputField('ชื่อผู้เบิกออก', 'issueForm', 'issuer', { placeholder: 'เช่น เชฟกวิน ร.' }),
-      selectField('ประเภทการเบิก', 'issueForm', 'purpose', PURPOSES.map(v => ({ value: v, label: v }))),
+      selectField('ประเภทการเบิก', 'issueForm', 'purpose', (supply ? SUPPLY_PURPOSES : PURPOSES).map(v => ({ value: v, label: v }))),
       when(f.purpose === 'เบิกโอนสาขา', () =>
         selectField('สาขาปลายทางที่รับโอน', 'issueForm', 'dest', destOptions, {
           placeholder: '— เลือกสาขาปลายทาง —', variant: 'accent'
         })),
-      inputField('ปลายทาง / หมายเหตุ', 'issueForm', 'note', { placeholder: 'ครัวร้อน / สาขาสยาม' })
+      inputField(supply ? 'แผนก / ผู้ใช้ / หมายเหตุ' : 'ปลายทาง / หมายเหตุ', 'issueForm', 'note', {
+        placeholder: supply ? 'เช่น ฝ่ายบัญชี / ครัวร้อน' : 'ครัวร้อน / สาขาสยาม'
+      })
     ),
     el('button', {
       class: 'btn btn--dark btn--submit',
@@ -81,7 +93,7 @@ function allocationPanel(state) {
   const weight = plan.rows.reduce((a, r) => a + (r.takeKg ?? r.take * r.lot.weightPerUnit), 0);
   const cost = plan.rows.reduce((a, r) => a + (r.cost ?? r.take * r.lot.pricePerUnit), 0);
 
-  const ages = plan.rows.map(r => ageLeftOf(r.lot));
+  const ages = plan.rows.map(r => ageLeftOf(r.lot)).filter(Number.isFinite);
   const ageText = !ages.length ? '—'
     : ages.length > 1 ? `${ages[0]}–${ages[ages.length - 1]} วัน`
     : `${ages[0]} วัน`;
@@ -102,7 +114,9 @@ function allocationPanel(state) {
     plan.rows.map(r => el('div', { class: 'alloc' },
       el('div', { class: 'grow' },
         el('div', { class: 'alloc__lot', text: r.lot.id }),
-        el('div', { class: 'alloc__exp', text: `หมดอายุ ${shortDate(expiryOf(r.lot))} · เหลืออายุ ${ageLeftOf(r.lot)} วัน` })
+        el('div', { class: 'alloc__exp', text: expiryOf(r.lot)
+          ? `หมดอายุ ${shortDate(expiryOf(r.lot))} · เหลืออายุ ${ageLeftOf(r.lot)} วัน`
+          : `รับเข้า ${shortDate(r.lot.recvDate)} · ไม่มีวันหมดอายุ` })
       ),
       el('div', { style: { textAlign: 'right' } },
         el('div', { class: 'alloc__qty', text: byWeight ? `${gram(r.takeKg)} กรัม · ${units(r.take)} ${r.lot.unit}` : `${units(r.take)} ${r.lot.unit}` }),

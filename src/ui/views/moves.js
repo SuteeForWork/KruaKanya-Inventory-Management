@@ -2,14 +2,14 @@
 
 import { el } from '../dom.js';
 import {
-  badge, card, moveTone, table, td, tdCode, tdNum, tdTitled, tr
+  badge, card, kindFilterBar, matchesKind, moveTone, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store, MOVE_FILTERS } from '../../core/store.js';
-import { baht, kg, n, shortDate, units } from '../../core/format.js';
+import { baht, kg, kgNum, n, shortDate, units } from '../../core/format.js';
 import { sortedMoves } from '../../core/inventory.js';
 
 const HEAD = [
-  'วันที่-เวลา', 'สาขา', 'ประเภท', 'เลขที่', 'ล็อต', 'วัตถุดิบ',
+  'วันที่-เวลา', 'สาขา', 'ประเภท', 'เลขที่', 'ล็อต', 'รายการ',
   'จำนวน|R', 'น้ำหนัก (กก.)|R', 'มูลค่า|R', 'ผู้ทำรายการ', 'หมายเหตุ'
 ];
 
@@ -20,6 +20,7 @@ function visibleMoves(state) {
   const wanted = FILTER_TYPE[state.moveFilter];
   return sortedMoves(state)
     .filter(m => !wanted || m.type === wanted)
+    .filter(m => matchesKind(state, m.code))
     .filter(m => store.matches(m.name, m.code, m.lotId, m.id, m.user, m.note || ''));
 }
 
@@ -57,7 +58,7 @@ export function movesView() {
     tdCode(m.lotId),
     tdTitled(m.name, m.code),
     tdNum(units(m.qty)),
-    tdNum(n(m.weight, 1)),
+    tdNum(m.weight ? kgNum(m.weight) : '—'),
     tdNum(baht(m.cost)),
     td(m.user),
     td(m.note || '-')
@@ -70,6 +71,7 @@ export function movesView() {
 
   return el('div', { class: 'page__sections', style: { gap: '13px' } },
     filterBar(state),
+    kindFilterBar(state),
     el('section', { class: 'card' }, head, table(HEAD, rows))
   );
 }

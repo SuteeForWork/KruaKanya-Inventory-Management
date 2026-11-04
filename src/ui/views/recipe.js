@@ -6,6 +6,7 @@ import {
   statCard, submitRow, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
+import { isSupplyItem } from '../../core/inventory.js';
 import { amountText, baht, cleanDecimal, gram, n } from '../../core/format.js';
 import {
   bomLineCost, bomLineUnit, capacityOf, dailyProduction, productVariance, recipeFromForm, recipePlan,
@@ -89,7 +90,10 @@ function prepNote(unit, stored) {
 
 /** One ingredient line of the recipe being drafted. */
 function recipeLine(state, line, index) {
-  const itemOptions = state.items.map(i => ({ value: i.code, label: `${i.code} · ${i.name}` }));
+  // Office/kitchen supplies (tissue, A4 paper, hair nets) aren't recipe ingredients.
+  const itemOptions = state.items
+    .filter(i => !isSupplyItem(i) || i.code === line.code)
+    .map(i => ({ value: i.code, label: `${i.code} · ${i.name}` }));
   const unit = bomLineUnit(state, line.code);
   const stored = recipeFromForm(state, { lines: [line] }).lines[0];
   const cost = line.code && stored.qty > 0 ? baht(bomLineCost(state, stored), 2) : '—';

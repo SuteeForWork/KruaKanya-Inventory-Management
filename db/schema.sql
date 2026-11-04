@@ -76,7 +76,9 @@ create table items (
   pack_unit text,             -- e.g. 'แพ็ค'
   pack_size numeric,          -- units per pack
   case_unit text,             -- e.g. 'กล่อง'
-  case_size numeric           -- packs per case
+  case_size numeric,          -- packs per case
+  -- 'material' | 'office' | 'kitchen' — db/migrations/012_item_kind_supplies.sql
+  kind      text not null default 'material'
 );
 
 -- ---------------------------------------------------------------------------

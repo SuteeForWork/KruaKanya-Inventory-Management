@@ -83,6 +83,16 @@ export function diffDays(from, to) {
   return Math.round((new Date(to + 'T00:00:00') - new Date(from + 'T00:00:00')) / 86400000);
 }
 
+/** A day count that may be Infinity (a lot that never expires) — shown as a dash. */
+export function days(value) {
+  return Number.isFinite(value) ? n(value) : '—';
+}
+
+/** A date that may be missing (no expiry) — shown as a dash. */
+export function optDate(date, empty = '—') {
+  return date ? shortDate(date) : empty;
+}
+
 /** YYYY-MM-DD → DD/MM/YY. */
 export function shortDate(date) {
   const d = new Date(date + 'T00:00:00');

@@ -3,6 +3,7 @@
 import { el, when } from './dom.js';
 import { store } from '../core/store.js';
 import { cleanDecimal } from '../core/format.js';
+import { isSupplyItem } from '../core/inventory.js';
 
 /* -------------------------------------------------------------------------- */
 /* Cards                                                                      */
@@ -198,3 +199,37 @@ export const moveTone = type =>
 
 /** Native Yes/No prompt gating a save — used only for editing existing rows, not adding new ones. */
 export const confirmAction = message => window.confirm(message);
+
+/* -------------------------------------------------------------------------- */
+/* Item-kind filter (materials vs office / kitchen supplies)                  */
+/* -------------------------------------------------------------------------- */
+
+export const KIND_FILTERS = [
+  { value: 'all',      label: 'ทั้งหมด' },
+  { value: 'material', label: 'วัตถุดิบ / บรรจุภัณฑ์' },
+  { value: 'office',   label: 'ของใช้สำนักงาน' },
+  { value: 'kitchen',  label: 'ของใช้ในครัว' }
+];
+
+/** Whether an item code passes the shared kind filter (state.kindFilter). */
+export function matchesKind(state, code) {
+  if (state.kindFilter === 'all') return true;
+  const item = state.items.find(i => i.code === code);
+  return ((item && item.kind) || 'material') === state.kindFilter;
+}
+
+export function kindFilterBar(state) {
+  return el('div', { class: 'filters', 'data-print': 'hide' },
+    KIND_FILTERS.map(f => el('button', {
+      class: ['filter', state.kindFilter === f.value && 'is-active'],
+      text: f.label,
+      onClick: () => store.setKindFilter(f.value)
+    }))
+  );
+}
+
+/** A small tag naming an item's kind — only for supplies; materials stay untagged. */
+export function kindTag(item) {
+  if (!isSupplyItem(item)) return null;
+  return badge(item.kind === 'office' ? 'ของใช้สำนักงาน' : 'ของใช้ในครัว', 'watch', { plain: true });
+}

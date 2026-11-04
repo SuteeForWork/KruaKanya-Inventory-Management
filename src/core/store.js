@@ -15,7 +15,8 @@ import { seed } from '../data/seed.js';
 import { config, today } from '../config.js';
 import { clockTime, gram, kg, baht, n, toISODate, toKg, units } from './format.js';
 import {
-  ALL_BRANCHES, allocate, allocateByWeight, ageLeftOf, baseQtyFor, branchName, inBranch, issuedOn, roundUnits
+  ALL_BRANCHES, ITEM_KINDS, allocate, allocateByWeight, ageLeftOf, baseQtyFor, branchName, inBranch,
+  isSupplyItem, issuedOn, roundUnits
 } from './inventory.js';
 import { bomLineUnit, outputFigures, outputIngredients, recipeFromForm, recipePlan } from './production.js';
 import {
@@ -27,6 +28,8 @@ import * as db from './db.js';
 const TOAST_MS = 4200;
 
 export const PURPOSES = ['เบิกผลิต', 'เบิกโอนสาขา', 'เบิกทดลองสูตร', 'ตัดทิ้ง/ของเสีย'];
+/** What an office/kitchen supply is issued for — used up, moved to another branch, or written off. */
+export const SUPPLY_PURPOSES = ['เบิกใช้', 'เบิกโอนสาขา', 'ตัดทิ้ง/ของเสีย'];
 export const BRANCH_TYPES = ['โรงผลิต', 'สาขาหน้าร้าน', 'คลังกระจายสินค้า'];
 export const MOVE_FILTERS = ['ทั้งหมด', 'รับเข้า', 'เบิกออก', 'ของเสีย'];
 
@@ -67,6 +70,9 @@ function clearStoredAuth() {
 /* Blank forms                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/** A supply without a shelf life never expires — its lots need no production date or shelf life. */
+const neverExpires = item => isSupplyItem(item) && !(item.shelfLife > 0);
+
 const blankReceive = () => ({
   recvDate: today(), recvTime: '08:30', code: '', name: '', supplier: '',
   buyer: 'ณัฐพล ส.', mfgDate: '2026-08-25', shelfLife: '',
@@ -104,7 +110,8 @@ const blankBranch = () => ({ name: '', type: 'สาขาหน้าร้า�
 const blankItem = () => ({
   code: '', name: '', category: '', unit: '', weightPerUnit: '', weightUnit: 'kg',
   shelfLife: '', minStock: '', storage: '', mainSupplier: '',
-  trackBy: 'weight', packUnit: '', packSize: '', caseUnit: '', caseSize: ''
+  trackBy: 'weight', packUnit: '', packSize: '', caseUnit: '', caseSize: '',
+  kind: 'material'
 });
 
 const blankRegister = () => ({
@@ -142,6 +149,8 @@ class Store {
       branch: restoredAuth ? (restoredAuth.branch || ALL_BRANCHES) : ALL_BRANCHES,
       search: '',
       moveFilter: MOVE_FILTERS[0],
+      // Materials vs office/kitchen supplies — shared by the stock, item and movement lists.
+      kindFilter: 'all',
       toast: null,
       // While `persisted`, init() replaces the seed above before first paint —
       // `booting` gates the UI so the login screen never flashes seed data.
@@ -675,12 +684,13 @@ class Store {
         ...(it.trackBy === 'count'
           ? { weightPerUnit: it.weightPerUnit ? String(Math.round(it.weightPerUnit * 1e4) / 10) : '', weightUnit: 'g' }
           : { weightPerUnit: String(it.weightPerUnit), weightUnit: 'kg' }),
-        shelfLife: String(it.shelfLife),
+        shelfLife: it.shelfLife ? String(it.shelfLife) : '',
         minStock: String(it.minStock), storage: it.storage === '-' ? '' : it.storage,
         mainSupplier: it.mainSupplier || '',
         trackBy: it.trackBy || 'weight',
         packUnit: it.packUnit || '', packSize: it.packSize ? String(it.packSize) : '',
-        caseUnit: it.caseUnit || '', caseSize: it.caseSize ? String(it.caseSize) : ''
+        caseUnit: it.caseUnit || '', caseSize: it.caseSize ? String(it.caseSize) : '',
+        kind: it.kind || 'material'
       }
     });
   }
@@ -692,20 +702,27 @@ class Store {
   async addItem() {
     if (!this.guard('master')) return;
     const f = this.state.itemForm;
-    const trackBy = f.trackBy === 'count' ? 'count' : 'weight';
+    const kind = ITEM_KINDS.some(k => k.value === f.kind) ? f.kind : 'material';
+    const supply = kind !== 'material';
+    // A supply (A4 paper, tissue, gloves) is counted, not weighed, and isn't a
+    // BOM ingredient — so it has no use for a weight per unit either.
+    const trackBy = supply || f.trackBy === 'count' ? 'count' : 'weight';
     // A count-tracked item (e.g. instruction cards) isn't weighed in stock — its
     // lots always carry weight 0 (submitReceive), so lowStock()/pricePerKg()
     // treat it correctly. weightPerUnit on the item itself is optional there:
     // it only lets a BOM line for it (a bag of seasoning) be typed in grams.
     // Typed in g or kg (see the "หน่วยน้ำหนัก" toggle) — always stored in kg.
-    const weightPerUnit = toKg(f.weightPerUnit, f.weightUnit);
+    const weightPerUnit = supply ? 0 : toKg(f.weightPerUnit, f.weightUnit);
+    // A supply's shelf life is optional: blank (0) means it never expires.
     const shelfLife = Number(f.shelfLife) || 0;
     const minStock = Number(f.minStock) || 0;
     const packSize = Number(f.packSize) || 0;
     const caseSize = Number(f.caseSize) || 0;
 
-    if (!f.code || !f.name || !f.unit || !shelfLife || (trackBy === 'weight' && !weightPerUnit)) {
-      this.say('กรอกไม่ครบ — ต้องมีรหัส ชื่อ หน่วยนับ และอายุวัตถุดิบ (และน้ำหนัก/หน่วย ถ้านับเป็นน้ำหนัก)', true);
+    if (!f.code || !f.name || !f.unit || (!supply && !shelfLife) || (trackBy === 'weight' && !weightPerUnit)) {
+      this.say(supply
+        ? 'กรอกไม่ครบ — ต้องมีรหัส ชื่อ และหน่วยนับ'
+        : 'กรอกไม่ครบ — ต้องมีรหัส ชื่อ หน่วยนับ และอายุวัตถุดิบ (และน้ำหนัก/หน่วย ถ้านับเป็นน้ำหนัก)', true);
       return;
     }
     if (f.packUnit && !packSize) {
@@ -723,7 +740,8 @@ class Store {
       mainSupplier: f.mainSupplier || null,
       trackBy,
       packUnit: f.packUnit || '', packSize: f.packUnit ? packSize : null,
-      caseUnit: f.caseUnit || '', caseSize: f.caseUnit ? caseSize : null
+      caseUnit: f.caseUnit || '', caseSize: f.caseUnit ? caseSize : null,
+      kind
     };
 
     if (this.state.editingItem) {
@@ -733,7 +751,9 @@ class Store {
         this.say(`รหัส ${newCode} มีอยู่แล้วในระบบ`, true);
         return;
       }
-      const ok = await this.persist('แก้ไขวัตถุดิบ', () => db.updateItem(oldCode, newCode, patch, this.supplierIdByName(f.mainSupplier)));
+      const before = this.state.items.find(i => i.code === oldCode);
+      const withKind = supply || isSupplyItem(before);
+      const ok = await this.persist('แก้ไขวัตถุดิบ', () => db.updateItem(oldCode, newCode, patch, this.supplierIdByName(f.mainSupplier), withKind));
       if (!ok) return;
       this.set(s => ({
         items: s.items.map(i => (i.code === oldCode ? { ...i, code: newCode, ...patch } : i)),
@@ -767,6 +787,23 @@ class Store {
   /* ---- receiving -------------------------------------------------------- */
 
   /** Picking an item code pre-fills the specs recorded on the item master. */
+  /**
+   * Choosing what to issue also fixes the purpose list: an office/kitchen
+   * supply is issued for use (เบิกใช้), not for production or recipe trials.
+   */
+  pickIssueItem(code) {
+    const item = this.state.items.find(i => i.code === code);
+    const allowed = isSupplyItem(item) ? SUPPLY_PURPOSES : PURPOSES;
+    this.set(s => ({
+      issueForm: {
+        ...s.issueForm, code,
+        purpose: allowed.includes(s.issueForm.purpose) ? s.issueForm.purpose : allowed[0],
+        // Supplies are counted only — never issued by weight.
+        qtyMode: isSupplyItem(item) ? 'unit' : s.issueForm.qtyMode
+      }
+    }));
+  }
+
   pickReceiveItem(code) {
     const item = this.state.items.find(i => i.code === code);
     this.set(s => ({
@@ -854,9 +891,9 @@ class Store {
     const qtyIn = Number(f.qtyIn) || 0;
     const weightPerUnit = isCount ? 0 : toKg(f.weightPerUnit, f.weightUnit);
     const pricePerUnit = Number(f.pricePerUnit) || 0;
-    const shelfLife = Number(f.shelfLife) || 0;
+    const shelfLife = neverExpires(item) ? 0 : Number(f.shelfLife) || 0;
 
-    if (!qtyIn || !pricePerUnit || !shelfLife || (!isCount && !weightPerUnit)) {
+    if (!qtyIn || !pricePerUnit || (!shelfLife && !isSupplyItem(item)) || (!isCount && !weightPerUnit)) {
       this.say('กรอกไม่ครบ — ต้องมีจำนวน ราคา และอายุวัตถุดิบ (และน้ำหนัก/หน่วย ถ้าวัตถุดิบนี้นับเป็นน้ำหนัก)', true);
       return;
     }
@@ -870,7 +907,7 @@ class Store {
 
     const patch = {
       supplier: f.supplier || '-', buyer: f.buyer || '-',
-      recvDate: f.recvDate, recvTime: f.recvTime, mfgDate: f.mfgDate,
+      recvDate: f.recvDate, recvTime: f.recvTime, mfgDate: shelfLife ? f.mfgDate : f.recvDate,
       shelfLife, weightPerUnit, qtyIn, qtyLeft, pricePerUnit, ref: f.ref || '-'
     };
 
@@ -957,7 +994,10 @@ class Store {
     // Typed in g or kg (see the "หน่วยน้ำหนัก" toggle) — always stored in kg.
     const weightPerUnit = isCount ? 0 : (f.weightPerUnit ? toKg(f.weightPerUnit, f.weightUnit) : (item ? item.weightPerUnit : 0));
     const pricePerUnit = Number(f.pricePerUnit) || 0;
-    const shelfLife = Number(f.shelfLife) || (item ? item.shelfLife : 0);
+    // A supply without a shelf life (A4 paper) gets no expiry: shelf life 0,
+    // and the receipt date stands in for the production date it doesn't have.
+    const shelfLife = neverExpires(item) ? 0 : Number(f.shelfLife) || (item ? item.shelfLife : 0);
+    const mfgDate = shelfLife ? f.mfgDate : f.recvDate;
 
     if (!f.code || !name || !qty || !pricePerUnit || (!isCount && !weightPerUnit)) {
       this.say('กรอกไม่ครบ — ต้องมีรหัสวัตถุดิบ ชื่อ จำนวน และราคา (และน้ำหนัก/หน่วย ถ้าวัตถุดิบนี้นับเป็นน้ำหนัก)', true);
@@ -970,7 +1010,7 @@ class Store {
       unit: item ? item.unit : 'หน่วย',
       weightPerUnit, shelfLife,
       supplier: f.supplier || '-', buyer: f.buyer || '-',
-      recvDate: f.recvDate, recvTime: f.recvTime, mfgDate: f.mfgDate,
+      recvDate: f.recvDate, recvTime: f.recvTime, mfgDate,
       qtyIn: qty, qtyLeft: qty, pricePerUnit, ref: f.ref || '-'
     };
     const move = {
@@ -1047,8 +1087,9 @@ class Store {
       weight: r.takeKg ?? r.take * r.lot.weightPerUnit,
       cost: r.cost ?? r.take * r.lot.pricePerUnit,
       user: f.issuer || '-', purpose: f.purpose,
-      age: ageLeftOf(r.lot),
-      note: `${f.note || '-'} · อายุคงเหลือ ${ageLeftOf(r.lot)} วัน`
+      // A lot that never expires (a supply) has no shelf life left to record.
+      age: Number.isFinite(ageLeftOf(r.lot)) ? ageLeftOf(r.lot) : undefined,
+      note: Number.isFinite(ageLeftOf(r.lot)) ? `${f.note || '-'} · อายุคงเหลือ ${ageLeftOf(r.lot)} วัน` : (f.note || '-')
     }));
 
     // A transfer lands as a matching receipt in the destination branch, so the
@@ -1503,6 +1544,7 @@ class Store {
   }
   setSearch(q)    { this.set({ search: q }); }
   setMoveFilter(f) { this.set({ moveFilter: f }); }
+  setKindFilter(k) { this.set({ kindFilter: k }); }
 
   /** Free-text match used by every searchable table. */
   matches(...parts) {
