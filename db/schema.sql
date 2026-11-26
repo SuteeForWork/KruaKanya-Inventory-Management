@@ -120,7 +120,7 @@ create table lots (
   qty_left        numeric not null check (qty_left >= 0),
   price_per_unit  numeric not null,
   ref             text,              -- PO / delivery note number
-  pending_delete  boolean not null default false  -- true while a non-admin's delete request awaits admin approval
+  pending_delete  boolean not null default false  -- unused since the admin-approval step was removed; kept so old rows still load
 );
 
 create index lots_branch_item_idx on lots (branch_id, item_code) where qty_left > 0;
@@ -147,7 +147,7 @@ create table moves (
   age_left_days integer,             -- shelf life remaining at the moment of issue; null for receipts
   created_at   timestamptz not null default now(),  -- real wall-clock insert time, never edited — admin-only audit column
   edited_at    timestamptz,          -- set only when move_date/move_time is corrected after the fact; null = never edited
-  pending_cancel boolean not null default false  -- true while a non-admin's cancel request awaits admin approval
+  pending_cancel boolean not null default false  -- unused since the admin-approval step was removed; kept so old rows still load
 );
 
 create index moves_branch_date_idx on moves (branch_id, move_date desc);

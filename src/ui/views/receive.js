@@ -2,7 +2,7 @@
 
 import { el, when } from '../dom.js';
 import {
-  badge, card, confirmAction, fieldGrid, formCard, inputField, selectField,
+  card, confirmAction, fieldGrid, formCard, inputField, selectField,
   submitRow, table, td, tdCode, tdNum, tdTitled, tr
 } from '../components.js';
 import { store } from '../../core/store.js';
@@ -145,39 +145,16 @@ function historyRows(state) {
     });
 }
 
-/** The last column: edit/delete for an untouched lot, an approval status
- *  (plus admin's approve/reject) once a non-admin's delete request is pending. */
+/** The last column: edit and delete. Anyone allowed to edit "รับเข้า" deletes
+ *  straight away (after a confirm) — there is no admin approval step. */
 function rowActions(l) {
   if (!store.canEdit('receive')) return null;
-
-  if (l.pendingDelete) {
-    if (!store.isAdmin()) return badge('รออนุมัติลบ', 'watch');
-    return el('div', { class: 'row', style: { gap: '6px' } },
-      badge('รออนุมัติลบ', 'watch'),
-      el('button', {
-        class: 'btn btn--small', text: 'อนุมัติลบ',
-        onClick: () => {
-          if (confirmAction(`ยืนยันลบรายการรับเข้า ${l.id} ถาวร? การลบนี้กู้คืนไม่ได้`)) store.approveDeleteLot(l.id);
-        }
-      }),
-      el('button', {
-        class: 'btn btn--small', text: 'ปฏิเสธ',
-        onClick: () => {
-          if (confirmAction(`ยืนยันปฏิเสธคำขอลบรายการรับเข้า ${l.id}?`)) store.rejectDeleteLot(l.id);
-        }
-      })
-    );
-  }
-
   return el('div', { class: 'row', style: { gap: '6px' } },
     el('button', { class: 'btn btn--small', text: 'แก้ไข', onClick: () => store.startEditLot(l.id) }),
     el('button', {
       class: 'btn btn--small', text: 'ลบ',
       onClick: () => {
-        const msg = store.isAdmin()
-          ? `ยืนยันลบรายการรับเข้า ${l.id} ถาวร? การลบนี้กู้คืนไม่ได้`
-          : `ยืนยันส่งคำขอลบรายการรับเข้า ${l.id}? ต้องรอผู้ดูแลระบบอนุมัติก่อนจึงจะลบจริง`;
-        if (confirmAction(msg)) store.requestDeleteLot(l.id);
+        if (confirmAction(`ยืนยันลบรายการรับเข้า ${l.id} ถาวร? การลบนี้กู้คืนไม่ได้`)) store.deleteLot(l.id);
       }
     })
   );

@@ -88,8 +88,7 @@ const toLot = row => ({
   supplier: row.suppliers ? row.suppliers.name : '-',
   buyer: row.buyer, recvDate: row.recv_date, recvTime: hm(row.recv_time),
   mfgDate: row.mfg_date, qtyIn: num(row.qty_in), qtyLeft: num(row.qty_left),
-  pricePerUnit: num(row.price_per_unit), ref: row.ref,
-  pendingDelete: Boolean(row.pending_delete)
+  pricePerUnit: num(row.price_per_unit), ref: row.ref
 });
 
 const toMove = row => ({
@@ -99,8 +98,7 @@ const toMove = row => ({
   qty: num(row.qty), weight: num(row.weight), cost: num(row.cost),
   user: row.staff_name, purpose: row.purpose, note: row.note,
   age: row.age_left_days === null ? undefined : row.age_left_days,
-  createdAt: row.created_at, editedAt: row.edited_at,
-  pendingCancel: Boolean(row.pending_cancel)
+  createdAt: row.created_at, editedAt: row.edited_at
 });
 
 const toOutput = row => ({
@@ -349,11 +347,6 @@ export async function updateMoveDateTime(docNo, date, time) {
   }).eq('doc_no', docNo), 'แก้ไขวันที่-เวลา');
 }
 
-/** Flags (or clears) a non-admin's request to cancel an issue. */
-export async function setMovePendingCancel(docNo, pending) {
-  must(await supabase.from('moves').update({ pending_cancel: pending }).eq('doc_no', docNo), 'ปรับสถานะคำขอยกเลิก');
-}
-
 /** Deletes every moves row for one issue doc — see store.js#cancelIssue,
  *  which restores the stock they drew down before calling this. */
 export async function deleteMovesByDoc(docNo) {
@@ -373,11 +366,6 @@ export async function updateLot(lotId, patch, supplierId) {
     qty_in: patch.qtyIn, qty_left: patch.qtyLeft, price_per_unit: patch.pricePerUnit,
     ref: patch.ref
   }).eq('id', lotId), 'แก้ไขรายการรับเข้า');
-}
-
-/** Flags (or clears) a non-admin's request to delete a receiving record. */
-export async function setLotPendingDelete(lotId, pending) {
-  must(await supabase.from('lots').update({ pending_delete: pending }).eq('id', lotId), 'ปรับสถานะคำขอลบ');
 }
 
 /**

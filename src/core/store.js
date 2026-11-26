@@ -940,9 +940,9 @@ class Store {
     return true;
   }
 
-  /** Admin-only, immediate — also the final step once a request is approved. */
+  /** Anyone who can edit "รับเข้า" deletes right away — no approval step. */
   async deleteLot(id) {
-    if (!this.isAdmin()) return;
+    if (!this.guard('receive')) return;
     const lot = this.state.lots.find(l => l.id === id);
     if (!lot || !this.lotDeletable(lot)) return;
 
@@ -950,34 +950,6 @@ class Store {
     if (!ok) return;
     this.set(s => ({ lots: s.lots.filter(l => l.id !== id), moves: s.moves.filter(m => m.lotId !== id) }));
     this.say(`ลบ ${id} เรียบร้อย`);
-  }
-
-  /** Admin deletes right away; anyone else who can edit "รับเข้า" only flags
-   *  the lot for approval — see approveDeleteLot / rejectDeleteLot below. */
-  async requestDeleteLot(id) {
-    if (!this.guard('receive')) return;
-    if (this.isAdmin()) { await this.deleteLot(id); return; }
-
-    const lot = this.state.lots.find(l => l.id === id);
-    if (!lot || !this.lotDeletable(lot)) return;
-
-    const ok = await this.persist('ขอลบรายการรับเข้า', () => db.setLotPendingDelete(id, true));
-    if (!ok) return;
-    this.set(s => ({ lots: s.lots.map(l => (l.id === id ? { ...l, pendingDelete: true } : l)) }));
-    this.say(`ส่งคำขอลบ ${id} แล้ว — รอผู้ดูแลระบบอนุมัติ`);
-  }
-
-  async approveDeleteLot(id) {
-    if (!this.isAdmin()) return;
-    await this.deleteLot(id);
-  }
-
-  async rejectDeleteLot(id) {
-    if (!this.isAdmin()) return;
-    const ok = await this.persist('ปฏิเสธคำขอลบ', () => db.setLotPendingDelete(id, false));
-    if (!ok) return;
-    this.set(s => ({ lots: s.lots.map(l => (l.id === id ? { ...l, pendingDelete: false } : l)) }));
-    this.say('ปฏิเสธคำขอลบแล้ว');
   }
 
   async submitReceive() {
@@ -1200,12 +1172,16 @@ class Store {
     return this.transferLotsFor(docNo).every(lot => this.lotDeletable(lot));
   }
 
-  /** Admin-only, immediate — also the final step once a request is approved. */
+  /** Anyone who can edit "เบิกออก" cancels right away — no approval step.
+   *  The stock each row drew down goes back to its lot. */
   async cancelIssue(docNo) {
-    if (!this.isAdmin()) return;
+    if (!this.guard('issue')) return;
     const rows = this.state.moves.filter(m => m.id === docNo);
     if (!rows.length) return;
-    if (!this.issueCancelable(docNo)) return;
+    if (!this.issueCancelable(docNo)) {
+      this.say('ยกเลิกไม่ได้ — สินค้าที่โอนไปสาขาปลายทางถูกเบิก/โอนออกต่อไปแล้ว', true);
+      return;
+    }
 
     const transferLots = this.transferLotsFor(docNo);
 
@@ -1229,35 +1205,6 @@ class Store {
       moves: s.moves.filter(m => m.id !== docNo)
     }));
     this.say(`ยกเลิก ${docNo} เรียบร้อย — คืนสต๊อกแล้ว`);
-  }
-
-  /** Admin cancels right away; anyone else who can edit "เบิกออก" only
-   *  flags the issue for approval — see approveCancelIssue / rejectCancelIssue. */
-  async requestCancelIssue(docNo) {
-    if (!this.guard('issue')) return;
-    if (!this.issueCancelable(docNo)) {
-      this.say('ยกเลิกไม่ได้ — สินค้าที่โอนไปสาขาปลายทางถูกเบิก/โอนออกต่อไปแล้ว', true);
-      return;
-    }
-    if (this.isAdmin()) { await this.cancelIssue(docNo); return; }
-
-    const ok = await this.persist('ขอยกเลิกการเบิกออก', () => db.setMovePendingCancel(docNo, true));
-    if (!ok) return;
-    this.set(s => ({ moves: s.moves.map(m => (m.id === docNo ? { ...m, pendingCancel: true } : m)) }));
-    this.say(`ส่งคำขอยกเลิก ${docNo} แล้ว — รอผู้ดูแลระบบอนุมัติ`);
-  }
-
-  async approveCancelIssue(docNo) {
-    if (!this.isAdmin()) return;
-    await this.cancelIssue(docNo);
-  }
-
-  async rejectCancelIssue(docNo) {
-    if (!this.isAdmin()) return;
-    const ok = await this.persist('ปฏิเสธคำขอยกเลิก', () => db.setMovePendingCancel(docNo, false));
-    if (!ok) return;
-    this.set(s => ({ moves: s.moves.map(m => (m.id === docNo ? { ...m, pendingCancel: false } : m)) }));
-    this.say('ปฏิเสธคำขอยกเลิกแล้ว');
   }
 
   /* ---- production output ------------------------------------------------ */
